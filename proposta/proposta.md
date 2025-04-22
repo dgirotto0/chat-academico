@@ -1,8 +1,8 @@
-# Proposta de Desenvolvimento - Chat Acadêmico
+# Proposta de Desenvolvimento - Scientifique AI
 
 ## Visão Geral do Projeto
 
-Este documento apresenta a proposta para o desenvolvimento do projeto **Chat Acadêmico**, uma plataforma digital que permite aos alunos utilizarem uma ferramenta avançada de interação com inteligência artificial (IA), semelhante ao GPT Plus. O objetivo é disponibilizar aos estudantes acesso facilitado e personalizado para aprimorar o aprendizado, com suporte completo para mensagens de texto e arquivos diversos (imagens, áudio, documentos).
+Este documento apresenta a proposta para o desenvolvimento do projeto **Scientifique AI**, uma plataforma digital que permite aos alunos utilizarem uma ferramenta avançada de interação com inteligência artificial (IA), semelhante ao GPT Plus. O objetivo é disponibilizar aos estudantes acesso facilitado e personalizado para aprimorar o aprendizado, com suporte completo para mensagens de texto e arquivos diversos (imagens, áudio, documentos).
 
 O projeto prevê dois níveis de acesso:
 

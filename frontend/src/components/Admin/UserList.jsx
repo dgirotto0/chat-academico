@@ -54,6 +54,56 @@ const UserList = ({ users, onEdit, onDelete, onAdd, currentUserId }) => {
     setUserToDelete(null);
   };
 
+  // Helper function to get status chip info
+  const getStatusChip = (user) => {
+    let statusText = 'Indeterminado';
+    let statusColor = 'default';
+    let icon = null;
+
+    if (user.active) {
+      statusText = 'Ativo';
+      statusColor = 'success';
+      icon = <CheckIcon />;
+    } else {
+      switch (user.status) {
+        case 'approved':
+          statusText = 'Ativo';
+          statusColor = 'success';
+          break;
+        case 'canceled':
+          statusText = 'Cancelado';
+          statusColor = 'error';
+          break;
+        case 'refunded':
+          statusText = 'Reembolsado';
+          statusColor = 'error';
+          break;
+        case 'expired':
+          statusText = 'Expirado';
+          statusColor = 'warning';
+          break;
+        case 'refused':
+          statusText = 'Recusado';
+          statusColor = 'warning';
+          break;
+        case 'pending':
+          statusText = 'Pendente';
+          statusColor = 'info';
+          break;
+        default:
+          statusText = 'Inativo';
+          statusColor = 'error';
+      }
+      icon = <CloseIcon />;
+    }
+
+    return {
+      text: statusText,
+      color: statusColor,
+      icon: icon
+    };
+  };
+
   return (
     <>
       <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -127,63 +177,67 @@ const UserList = ({ users, onEdit, onDelete, onAdd, currentUserId }) => {
               </TableRow>
             </TableHead>
             <TableBody>
-              {filteredUsers.map((user, index) => (
-                <Zoom 
-                  in={true} 
-                  key={user.id}
-                  style={{ transitionDelay: `${index * 50}ms` }}
-                >
-                  <TableRow 
-                    sx={{ 
-                      '&:hover': { bgcolor: 'action.hover' },
-                      transition: 'background-color 0.2s'
-                    }}
+              {filteredUsers.map((user, index) => {
+                const statusChip = getStatusChip(user);
+
+                return (
+                  <Zoom 
+                    in={true} 
+                    key={user.id}
+                    style={{ transitionDelay: `${index * 50}ms` }}
                   >
-                    <TableCell>{user.name}</TableCell>
-                    <TableCell>{user.email}</TableCell>
-                    <TableCell>
-                      <Chip 
-                        label={user.role === 'admin' ? 'Administrador' : 'Aluno'} 
-                        color={user.role === 'admin' ? 'secondary' : 'default'}
-                        size="small"
-                        sx={{ fontWeight: 500 }}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Chip 
-                        icon={user.active ? <CheckIcon /> : <CloseIcon />}
-                        label={user.active ? 'Ativo' : 'Inativo'} 
-                        color={user.active ? 'success' : 'error'}
-                        size="small"
-                        variant="outlined"
-                      />
-                    </TableCell>
-                    <TableCell align="right">
-                      <Tooltip title="Editar usuário" arrow>
-                        <IconButton 
-                          onClick={() => onEdit(user)}
-                          color="primary"
-                          aria-label={`Editar usuário ${user.name}`}
-                        >
-                          <EditIcon />
-                        </IconButton>
-                      </Tooltip>
-                      <Tooltip title={user.id === currentUserId ? "Não é possível excluir a si mesmo" : "Excluir usuário"} arrow>
-                        <span>
+                    <TableRow 
+                      sx={{ 
+                        '&:hover': { bgcolor: 'action.hover' },
+                        transition: 'background-color 0.2s'
+                      }}
+                    >
+                      <TableCell>{user.name}</TableCell>
+                      <TableCell>{user.email}</TableCell>
+                      <TableCell>
+                        <Chip 
+                          label={user.role === 'admin' ? 'Administrador' : 'Aluno'} 
+                          color={user.role === 'admin' ? 'secondary' : 'default'}
+                          size="small"
+                          sx={{ fontWeight: 500 }}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Chip 
+                          icon={statusChip.icon}
+                          label={statusChip.text} 
+                          color={statusChip.color}
+                          size="small"
+                          variant="outlined"
+                        />
+                      </TableCell>
+                      <TableCell align="right">
+                        <Tooltip title="Editar usuário" arrow>
                           <IconButton 
-                            onClick={() => handleDeleteClick(user)}
-                            disabled={user.id === currentUserId}
-                            color="error"
-                            aria-label={`Excluir usuário ${user.name}`}
+                            onClick={() => onEdit(user)}
+                            color="primary"
+                            aria-label={`Editar usuário ${user.name}`}
                           >
-                            <DeleteIcon />
+                            <EditIcon />
                           </IconButton>
-                        </span>
-                      </Tooltip>
-                    </TableCell>
-                  </TableRow>
-                </Zoom>
-              ))}
+                        </Tooltip>
+                        <Tooltip title={user.id === currentUserId ? "Não é possível excluir a si mesmo" : "Excluir usuário"} arrow>
+                          <span>
+                            <IconButton 
+                              onClick={() => handleDeleteClick(user)}
+                              disabled={user.id === currentUserId}
+                              color="error"
+                              aria-label={`Excluir usuário ${user.name}`}
+                            >
+                              <DeleteIcon />
+                            </IconButton>
+                          </span>
+                        </Tooltip>
+                      </TableCell>
+                    </TableRow>
+                  </Zoom>
+                );
+              })}
             </TableBody>
           </Table>
         </TableContainer>

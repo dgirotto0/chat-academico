@@ -1,11 +1,11 @@
-const { User } = require('../models');
+const { User, Chat, Message } = require('../models');
 const { validationResult } = require('express-validator');
 
-// Listar todos os usuários (apenas para admin)
-exports.getAllUsers = async (req, res) => {
+// Listar todos os usuários (apenas admin)
+exports.getUsers = async (req, res) => {
   try {
     const users = await User.findAll({
-      attributes: { exclude: ['password'] }
+      attributes: ['id', 'name', 'email', 'role', 'active', 'status', 'createdAt', 'mustResetPassword']
     });
     
     return res.status(200).json(users);

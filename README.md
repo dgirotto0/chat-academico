@@ -1,4 +1,4 @@
-# Chat Acadêmico
+# Scientifique AI
 
 Aplicação web que simula as funcionalidades do GPT Plus para auxiliar alunos universitários, com sistema de autenticação e diferentes perfis de usuário.
 
@@ -68,6 +68,8 @@ npm run install-all
 
 4. Crie o banco de dados no PostgreSQL:
 ```sql
+# Definir a senha para o usuário postgres (se necessário)
+ALTER USER postgres WITH PASSWORD 'postgres';
 CREATE DATABASE chat_academico;
 ```
 

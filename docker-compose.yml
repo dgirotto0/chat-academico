@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15
+    restart: always
+    environment:
+      POSTGRES_DB: chat_academico
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  backend:
+    build: ./backend
+    restart: always
+    environment:
+      NODE_ENV: production
+      DB_HOST: db
+      DB_USER: postgres
+      DB_PASS: postgres
+      DB_NAME: chat_academico
+      DB_PORT: 5432
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRES: ${JWT_EXPIRES}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASS: ${SMTP_PASS}
+      HOTMART_WEBHOOK_SECRET: ${HOTMART_WEBHOOK_SECRET}
+      FRONTEND_URL: http://localhost
+      PORT: 5000
+    depends_on:
+      - db
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./backend:/app
+
+  frontend:
+    build: ./frontend
+    restart: always
+    environment:
+      - NODE_ENV=production
+    depends_on:
+      - backend
+    ports:
+      - "3000:80"
+    volumes:
+      - ./frontend:/app
+
+volumes:
+  db_data:

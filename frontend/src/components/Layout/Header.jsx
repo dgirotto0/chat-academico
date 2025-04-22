@@ -97,7 +97,7 @@ const Header = ({ toggleSidebar, showMenuButton = false }) => {
                 color: 'text.primary'
               }}
             >
-              Chat Acadêmico
+              Scientifique AI
             </Typography>
           </Box>
         </motion.div>

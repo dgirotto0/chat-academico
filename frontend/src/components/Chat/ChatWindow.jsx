@@ -70,6 +70,7 @@ const ChatWindow = ({ chatId, onChatUpdated }) => {
     try {
       setLoading(true);
       const response = await chatApi.getChatMessages(chatId);
+      // Reset messages completely instead of appending to prevent duplication
       setMessages(response.data);
     } catch (error) {
       console.error('Erro ao buscar mensagens:', error);
@@ -82,6 +83,7 @@ const ChatWindow = ({ chatId, onChatUpdated }) => {
   // Buscar mensagens quando o chatId mudar
   useEffect(() => {
     if (chatId) {
+      setMessages([]); // Clear messages first
       fetchMessages();
     } else {
       setMessages([]);
@@ -95,62 +97,26 @@ const ChatWindow = ({ chatId, onChatUpdated }) => {
 
   const handleSendMessage = async (e) => {
     e.preventDefault();
-    
     if (!newMessage.trim() && !selectedFile) return;
 
     try {
       setSendingMessage(true);
+      const response = await chatApi.sendMessage(chatId, newMessage.trim(), selectedFile);
+      const { userMessage, assistantMessage } = response.data;
       
-      // Preparar o conteúdo da mensagem, incluindo informações do arquivo se disponíveis
-      let messageContent = newMessage.trim();
+      // First check if the messages already exist in the state to avoid duplicates
+      const messageExists = messages.some(msg => 
+        (msg.id === userMessage.id || msg.id === assistantMessage.id)
+      );
       
-      if (selectedFile && fileContent) {
-        // Adicionar conteúdo do arquivo à mensagem do usuário
-        if (messageContent) {
-          messageContent += "\n\n";
-        }
-        messageContent += `[Arquivo anexado: ${selectedFile.name}]\n`;
-        
-        if (fileContent.message) {
-          messageContent += fileContent.message;
-        }
-      } else if (selectedFile) {
-        // Se tiver apenas arquivo sem processamento
-        if (messageContent) {
-          messageContent += "\n\n";
-        }
-        messageContent += `[Arquivo anexado: ${selectedFile.name}]`;
+      if (!messageExists) {
+        setMessages(prev => [...prev, userMessage, assistantMessage]);
       }
       
-      // Enviar mensagem com o conteúdo combinado
-      const response = await chatApi.sendMessage(chatId, messageContent);
-      
-      setMessages(prev => [...prev, response.data.userMessage, response.data.assistantMessage]);
       setNewMessage('');
-      
-      // Atualizar data da última atividade no chat
-      if (onChatUpdated && response.data.chat) {
-        onChatUpdated(response.data.chat);
-      }
-      
-      // Se tiver arquivo selecionado, fazer upload após enviar a mensagem
-      if (selectedFile) {
-        try {
-          setUploading(true);
-          await uploadApi.uploadFile(response.data.userMessage.id, selectedFile);
-          // Não precisamos mostrar notificação aqui, pois o arquivo já foi processado
-        } catch (uploadError) {
-          console.error('Erro ao fazer upload de arquivo:', uploadError);
-          showError('Erro ao associar arquivo à mensagem. O arquivo pode não estar disponível para download.');
-        } finally {
-          setUploading(false);
-          setSelectedFile(null);
-          setFileProcessed(false);
-          setFileContent(null);
-        }
-      }
+      setSelectedFile(null);
+      // atualizar chat...
     } catch (error) {
-      console.error('Erro ao enviar mensagem:', error);
       showError('Erro ao enviar mensagem. Tente novamente.');
     } finally {
       setSendingMessage(false);
@@ -245,23 +211,34 @@ const ChatWindow = ({ chatId, onChatUpdated }) => {
         
         // Armazenar o resultado do processamento
         if (response.data.processing && response.data.processing.success) {
+          // Attach preprocessing info to the file object
+          file.preprocessed = {
+            success: true,
+            fileId: response.data.processing.fileId || null
+          };
+          
           setFileProcessed(true);
           setFileContent(response.data.processing);
-          showSuccess(`Arquivo processado com sucesso!`);
+          showSuccess(`Arquivo processado e pronto para análise`);
         } else {
-          setFileProcessed(true); // Ainda marcamos como processado, mesmo se não for bem-sucedido
+          file.preprocessed = {
+            success: false
+          };
+          
+          setFileProcessed(true);
           setFileContent({
-            success: false,
-            message: `Não foi possível extrair o conteúdo do arquivo "${file.name}". O arquivo será anexado, mas seu conteúdo pode não ser analisado corretamente.`
+            success: false
           });
-          showWarning(`Arquivo anexado, mas o conteúdo não pôde ser processado automaticamente`);
+          showWarning(`Arquivo anexado e pronto para envio`);
         }
+        
+        // Update the selected file with the preprocessed data
+        setSelectedFile(file);
       } catch (error) {
         console.error('Erro ao processar arquivo:', error);
-        setFileProcessed(true); // Ainda marcamos como processado, mesmo com erro
+        setFileProcessed(true);
         setFileContent({
-          success: false,
-          message: `Erro ao processar "${file.name}". O arquivo será anexado, mas seu conteúdo pode não ser analisado corretamente.`
+          success: false
         });
         showError('Erro ao processar arquivo. O arquivo será anexado, mas seu conteúdo pode não ser analisado corretamente.');
       } finally {
@@ -364,7 +341,7 @@ const ChatWindow = ({ chatId, onChatUpdated }) => {
           }}>
             <AutoAwesome sx={{ fontSize: 60, color: theme.palette.primary.main, mb: 2 }} />
             <Typography variant="h5" gutterBottom color="primary" fontWeight="medium">
-              Bem-vindo ao Chat Acadêmico
+              Bem-vindo ao Scientifique AI
             </Typography>
             <Typography variant="body1" color="text.secondary" paragraph>
               Seu assistente especializado para pesquisa e escrita acadêmica. Selecione uma conversa existente ou inicie uma nova para começar.
@@ -448,11 +425,11 @@ const ChatWindow = ({ chatId, onChatUpdated }) => {
             ) : fileProcessed && fileContent?.success ? (
               <Typography variant="caption" color="success.main" sx={{ display: 'flex', alignItems: 'center' }}>
                 <Check fontSize="small" sx={{ mr: 0.5 }} /> 
-                Arquivo processado e pronto para análise
+                Arquivo pronto para envio
               </Typography>
             ) : (
               <Typography variant="caption" color="warning.main">
-                Arquivo anexado, conteúdo não processado completamente
+                Arquivo anexado, pronto para envio
               </Typography>
             )}
           </Box>

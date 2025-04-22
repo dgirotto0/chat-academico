@@ -3,12 +3,12 @@ import {
   Box, List, ListItem, ListItemText, ListItemButton, 
   Typography, IconButton, TextField, Dialog, 
   DialogTitle, DialogContent, DialogActions, Button,
-  Divider, Tooltip, Badge, Chip, useTheme,
+  Divider, Badge, useTheme,
   InputAdornment, InputBase, Paper
 } from '@mui/material';
 import { 
   Add, Edit, Delete, Chat as ChatIcon, 
-  Search as SearchIcon, MoreHoriz, ChatBubbleOutline,
+  Search as SearchIcon, ChatBubbleOutline,
   Close
 } from '@mui/icons-material';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -75,7 +75,6 @@ const ChatSidebar = ({ chats, selectedChat, onSelectChat, onChatCreated, onChatD
   const handleUpdateChat = async () => {
     try {
       setUpdatingChat(true);
-      showInfo('Atualizando título da conversa...');
       const response = await chatApi.updateChat(editChatId, editChatTitle);
       onChatUpdated(response.data.chat);
       setIsEditDialogOpen(false);

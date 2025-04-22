@@ -31,6 +31,29 @@ const User = sequelize.define('User', {
   active: {
     type: DataTypes.BOOLEAN,
     defaultValue: true
+  },
+  // —— campos novos —— 
+  status: {
+    type: DataTypes.ENUM(
+      'pending',
+      'approved',
+      'refused',
+      'late',
+      'expired',
+      'refunded',
+      'canceled'
+    ),
+    allowNull: false,
+    defaultValue: 'pending'
+  },
+  mustResetPassword: {
+    type: DataTypes.BOOLEAN,
+    allowNull: false,
+    defaultValue: false
+  },
+  hotmartPurchaseId: {
+    type: DataTypes.STRING,
+    allowNull: true
   }
 }, {
   hooks: {
@@ -46,6 +69,20 @@ const User = sequelize.define('User', {
         user.password = await bcrypt.hash(user.password, salt);
       }
     }
+  }
+});
+
+// Hook to automatically manage active state based on status
+User.beforeSave(async (user) => {
+  // If status is changed, update active state accordingly
+  if (user.changed('status')) {
+    if (user.status === 'approved') {
+      user.active = true;
+    } 
+    else if (['canceled', 'refunded', 'expired', 'refused'].includes(user.status)) {
+      user.active = false;
+    }
+    // For other statuses like 'pending', don't automatically change active state
   }
 });
 

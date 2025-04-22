@@ -1,24 +1,30 @@
+// backend/models/index.js
+
 const sequelize = require('../config/database');
 const User = require('./User');
 const Chat = require('./Chat');
 const Message = require('./Message');
 const File = require('./File');
+const WebhookEvent = require('./WebhookEvent');
+const HotmartEventLog = require('./HotmartEventLog');
 
-// Definir relacionamentos
-User.hasMany(Chat);
+// Definir as associações entre os modelos
+User.hasMany(Chat, { onDelete: 'CASCADE' });
 Chat.belongsTo(User);
 
 Chat.hasMany(Message, { onDelete: 'CASCADE' });
 Message.belongsTo(Chat);
 
-// Definir relacionamento com cascata para excluir arquivos quando uma mensagem é excluída
 Message.hasMany(File, { onDelete: 'CASCADE' });
 File.belongsTo(Message);
 
+// Exportar os modelos
 module.exports = {
   sequelize,
   User,
   Chat,
   Message,
-  File
+  File,
+  WebhookEvent,
+  HotmartEventLog
 };

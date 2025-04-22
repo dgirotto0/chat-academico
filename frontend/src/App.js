@@ -13,6 +13,7 @@ import { NotificationProvider } from './contexts/NotificationContext';
 import Login from './pages/Login';
 import Chat from './pages/Chat';
 import AdminDashboard from './pages/AdminDashboard';
+import ResetPasswordPage from './pages/ResetPasswordPage'; 
 
 // Tema da aplicação
 const theme = createTheme({
@@ -97,6 +98,7 @@ function App() {
           <Router>
             <Routes>
               <Route path="/login" element={<Login />} />
+              <Route path="/reset-password" element={<ResetPasswordPage />} /> {/* Torne pública */}
               
               <Route 
                 path="/" 

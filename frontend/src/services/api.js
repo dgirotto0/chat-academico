@@ -31,7 +31,24 @@ export const chatApi = {
   getChats: () => api.get('/chat'),
   createChat: (title) => api.post('/chat', { title }),
   getChatMessages: (chatId) => api.get(`/chat/${chatId}/messages`),
-  sendMessage: (chatId, content) => api.post(`/chat/${chatId}/messages`, { content }),
+  sendMessage: (chatId, content, file) => {
+    if (file) {
+      const formData = new FormData();
+      formData.append('content', content);
+      formData.append('file', file);
+      
+      // Add flag to indicate this is a preprocessed file
+      if (file.preprocessed) {
+        formData.append('preprocessed', 'true');
+        formData.append('fileId', file.preprocessed.fileId || '');
+      }
+      
+      return api.post(`/chat/${chatId}/messages`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+    }
+    return api.post(`/chat/${chatId}/messages`, { content });
+  },
   updateChat: (chatId, title) => api.put(`/chat/${chatId}`, { title }),
   deleteChat: (chatId) => api.delete(`/chat/${chatId}`),
   regenerateMessage: (chatId, messageId) => api.post(`/chat/${chatId}/regenerate/${messageId}`),

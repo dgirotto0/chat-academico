@@ -2,104 +2,131 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Container, Box, Typography, TextField, Paper, 
-  Alert, InputAdornment
+  Alert, InputAdornment, Link, Dialog, DialogTitle, 
+  DialogContent, DialogContentText, DialogActions, Button,
+  IconButton, CircularProgress
 } from '@mui/material';
 import { 
   Email as EmailIcon, 
-  Lock as LockIcon 
+  Lock as LockIcon,
+  Visibility, 
+  VisibilityOff,
+  LockOutlined
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
 import LoadingButton from '../components/Common/LoadingButton';
+import RequiredPasswordReset from '../components/Auth/RequiredPasswordReset';
+import SubscriptionAlert from '../components/Common/SubscriptionAlert';
 
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [errors, setErrors] = useState({});
-  const { login, isAuthenticated, loading, error } = useAuth();
+  const [showPassword, setShowPassword] = useState(false);
+  const [subscriptionStatus, setSubscriptionStatus] = useState(null);
+  const [subscriptionMessage, setSubscriptionMessage] = useState('');
+  const { login, forgotPassword, isAuthenticated, loading, error, mustResetPassword } = useAuth();
   const { showSuccess, showError } = useNotification();
   const navigate = useNavigate();
+  
+  // Forgot password states
+  const [forgotDialogOpen, setForgotDialogOpen] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotSuccess, setForgotSuccess] = useState(false);
+  const [forgotError, setForgotError] = useState('');
+  const [forgotLoading, setForgotLoading] = useState(false);
 
-  // Redirecionar se já estiver autenticado
+  // Redirecionar se já estiver autenticado e não precisa resetar
   useEffect(() => {
-    if (isAuthenticated) {
-      navigate('/');
+    if (isAuthenticated && !mustResetPassword) {
+      navigate('/app/chat');
     }
-  }, [isAuthenticated, navigate]);
+  }, [isAuthenticated, mustResetPassword, navigate]);
 
-  // Validar campo individual
   const validateField = (name, value) => {
-    let error = '';
-    
-    switch (name) {
-      case 'email':
-        if (!value) {
-          error = 'Email é obrigatório';
-        } else if (!/\S+@\S+\.\S+/.test(value)) {
-          error = 'Email inválido';
-        }
-        break;
-      case 'password':
-        if (!value) {
-          error = 'Senha é obrigatória';
-        } else if (value.length < 6) {
-          error = 'Senha deve ter pelo menos 6 caracteres';
-        }
-        break;
-      default:
-        break;
+    let err = '';
+    if (name === 'email') {
+      if (!value) err = 'Email é obrigatório';
+      else if (!/\S+@\S+\.\S+/.test(value)) err = 'Email inválido';
     }
-    
-    return error;
+    if (name === 'password' && !value) err = 'Senha é obrigatória';
+    return err;
   };
 
-  // Atualizar um campo e validá-lo
   const handleChange = (e) => {
     const { name, value } = e.target;
-    
-    if (name === 'email') {
-      setEmail(value);
-    } else if (name === 'password') {
-      setPassword(value);
-    }
-    
-    const error = validateField(name, value);
-    setErrors(prev => ({
-      ...prev,
-      [name]: error
-    }));
+    if (name === 'email') setEmail(value);
+    if (name === 'password') setPassword(value);
+    setErrors(prev => ({ ...prev, [name]: validateField(name, value) }));
   };
 
-  // Validar formulário completo
   const validateForm = () => {
     const newErrors = {
       email: validateField('email', email),
       password: validateField('password', password)
     };
-    
     setErrors(newErrors);
     return !newErrors.email && !newErrors.password;
   };
 
-  // Lidar com envio de formulário
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    if (!validateForm()) {
-      return;
-    }
+    if (!validateForm()) return;
 
     try {
-      const success = await login(email, password);
-      if (success) {
-        showSuccess('Login realizado com sucesso!');
-        navigate('/');
+      const result = await login(email, password);
+      console.log('Login result:', result);
+      console.log('Must reset password:', Boolean(result.mustResetPassword));
+      
+      if (result.success) {
+        if (Boolean(result.mustResetPassword) === true) {
+          console.log('User must reset password, redirecting to reset page');
+        } else {
+          console.log('User login successful, redirecting to chat');
+          showSuccess('Login realizado com sucesso!');
+          navigate('/app/chat');
+        }
+      } else if (result.status) {
+        setSubscriptionStatus(result.status);
+        setSubscriptionMessage(result.message);
       }
     } catch (error) {
+      console.error('Login error:', error);
       showError('Erro ao fazer login. Verifique suas credenciais.');
     }
   };
+
+  const handleForgotPassword = async () => {
+    if (!forgotEmail.trim()) {
+      setForgotError('Por favor, insira seu e-mail');
+      return;
+    }
+    setForgotLoading(true);
+    setForgotError('');
+    try {
+      const result = await forgotPassword(forgotEmail.trim());
+      if (result.success) setForgotSuccess(true);
+      else setForgotError(result.message);
+    } catch {
+      setForgotError('Ocorreu um erro ao processar sua solicitação');
+    } finally {
+      setForgotLoading(false);
+    }
+  };
+
+  const handlePasswordResetComplete = () => {
+    navigate('/login');
+  };
+
+  if (mustResetPassword) {
+    return (
+      <RequiredPasswordReset 
+        onPasswordReset={handlePasswordResetComplete} 
+      />
+    );
+  }
 
   return (
     <Container maxWidth="sm">
@@ -134,7 +161,7 @@ const Login = () => {
               fontWeight="bold"
               color="primary"
             >
-              Chat Acadêmico
+              Scientifique AI
             </Typography>
             <Typography 
               variant="body1" 
@@ -150,6 +177,11 @@ const Login = () => {
                 {error}
               </Alert>
             )}
+            
+            <SubscriptionAlert 
+              status={subscriptionStatus} 
+              message={subscriptionMessage}
+            />
 
             <form onSubmit={handleSubmit}>
               <TextField
@@ -177,7 +209,7 @@ const Login = () => {
               <TextField
                 name="password"
                 label="Senha"
-                type="password"
+                type={showPassword ? 'text' : 'password'}
                 variant="outlined"
                 fullWidth
                 margin="normal"
@@ -193,9 +225,34 @@ const Login = () => {
                       <LockIcon color={errors.password ? "error" : "action"} />
                     </InputAdornment>
                   ),
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton
+                        onClick={() => setShowPassword(!showPassword)}
+                        edge="end"
+                      >
+                        {showPassword ? <VisibilityOff /> : <Visibility />}
+                      </IconButton>
+                    </InputAdornment>
+                  ),
                 }}
                 aria-label="Campo de senha"
               />
+              
+              <Box sx={{ textAlign: 'right', mt: 1 }}>
+                <Link 
+                  component="button" 
+                  variant="body2" 
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setForgotDialogOpen(true);
+                  }}
+                  underline="hover"
+                >
+                  Esqueceu sua senha?
+                </Link>
+              </Box>
+              
               <LoadingButton
                 type="submit"
                 variant="contained"
@@ -212,6 +269,76 @@ const Login = () => {
           </Paper>
         </motion.div>
       </Box>
+      
+      {/* Forgot Password Dialog */}
+      <Dialog open={forgotDialogOpen} onClose={() => !forgotLoading && setForgotDialogOpen(false)}>
+        <DialogTitle>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <LockOutlined color="primary" />
+            Recuperação de Senha
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          {forgotSuccess ? (
+            <Alert severity="success" sx={{ mb: 2 }}>
+              Se este e-mail estiver cadastrado, você receberá instruções em breve.
+            </Alert>
+          ) : (
+            <>
+              <DialogContentText>
+                Digite seu e-mail abaixo para receber um link de recuperação de senha.
+              </DialogContentText>
+              {forgotError && (
+                <Alert severity="error" sx={{ mt: 2, mb: 1 }}>
+                  {forgotError}
+                </Alert>
+              )}
+              <TextField
+                autoFocus
+                margin="dense"
+                label="Email"
+                type="email"
+                fullWidth
+                variant="outlined"
+                value={forgotEmail}
+                onChange={(e) => setForgotEmail(e.target.value)}
+                disabled={forgotLoading}
+              />
+            </>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 3 }}>
+          {forgotSuccess ? (
+            <Button 
+              onClick={() => {
+                setForgotDialogOpen(false);
+                setForgotSuccess(false);
+                setForgotEmail('');
+              }}
+              variant="contained"
+            >
+              Fechar
+            </Button>
+          ) : (
+            <>
+              <Button 
+                onClick={() => setForgotDialogOpen(false)} 
+                disabled={forgotLoading}
+              >
+                Cancelar
+              </Button>
+              <Button 
+                onClick={handleForgotPassword} 
+                variant="contained"
+                disabled={forgotLoading}
+                startIcon={forgotLoading ? <CircularProgress size={20} /> : null}
+              >
+                {forgotLoading ? 'Enviando...' : 'Enviar'}
+              </Button>
+            </>
+          )}
+        </DialogActions>
+      </Dialog>
     </Container>
   );
 };

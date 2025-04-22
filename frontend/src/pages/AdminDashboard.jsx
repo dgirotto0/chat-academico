@@ -75,7 +75,6 @@ const AdminDashboard = () => {
       
       if (userId) {
         // Atualizar usuário existente
-        showInfo('Atualizando usuário...');
         const response = await adminApi.updateUser(userId, userData);
         setUsers(prev => prev.map(u => u.id === userId ? response.data.user : u));
         showSuccess('Usuário atualizado com sucesso!');

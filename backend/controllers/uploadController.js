@@ -1,116 +1,99 @@
 const { Message, File, Chat } = require('../models');
 const fs = require('fs');
-const path = require('path');
-const { OpenAI } = require('openai');
 const util = require('util');
+const path = require('path');
+const pdfParse = require('pdf-parse'); // Install via: npm install pdf-parse
+
 const readFile = util.promisify(fs.readFile);
 const fsExists = util.promisify(fs.exists);
 
-// Iniciar cliente OpenAI
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
-});
+// Iniciar cliente OpenAI (para outros usos se necessário)
+const { OpenAI } = require('openai');
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-// Função auxiliar para processar o conteúdo do arquivo
-const processFileContent = async (file) => {
-  let fileContent = null;
-  let processingResult = {
+/**
+ * processFileContent: extrai conteúdo de texto de arquivos
+ * - Para text/plain: lê conteúdo diretamente
+ * - Para application/pdf: usa pdf-parse para extrair texto
+ * - Outros tipos: apenas registra recepção
+ */
+async function processFileContent(file) {
+  let result = {
     success: false,
     content: null,
     message: '',
-    processed: false
+    processed: false,
+    originalName: file.originalName
   };
 
   try {
-    // Para arquivos de texto simples
+    // Texto simples
     if (file.mimetype === 'text/plain') {
       const buffer = await readFile(file.path);
-      fileContent = buffer.toString('utf8');
-      
-      // Limitar tamanho do conteúdo para evitar problemas com tokens muito grandes
-      if (fileContent && fileContent.length > 10000) {
-        fileContent = fileContent.substring(0, 10000) + "... [conteúdo truncado devido ao tamanho]";
+      let text = buffer.toString('utf8');
+      if (text.length > 10000) {
+        text = text.slice(0, 10000) + '... [truncated]';
       }
-      
-      console.log(`Arquivo de texto processado: ${file.originalName} (${fileContent.length} caracteres)`);
-      
-      processingResult = {
+      console.log(`Texto de ${file.originalName} lido: ${text.length} chars`);
+      result = {
         success: true,
-        content: fileContent,
-        message: `Conteúdo do arquivo "${file.originalName}":\n\n${fileContent}`,
-        processed: true
+        content: text,
+        message: `Conteúdo de "${file.originalName}":\n\n${text}`,
+        processed: true,
+        originalName: file.originalName
       };
-    } 
-    // Para PDFs, tente usar a API de análise da OpenAI
-    else if (file.mimetype === 'application/pdf') {
-      try {
-        console.log(`Tentando processar PDF via OpenAI: ${file.originalName}`);
-        
-        // Na versão atual da API OpenAI, precisamos fazer upload do arquivo primeiro
-        const fileUpload = await openai.files.create({
-          file: fs.createReadStream(file.path),
-          purpose: 'assistants',
-        });
-        
-        if (fileUpload && fileUpload.id) {
-          console.log(`Arquivo enviado com sucesso para OpenAI, ID: ${fileUpload.id}`);
-          
-          processingResult = {
-            success: true,
-            content: `[PDF ID: ${fileUpload.id}]`,
-            message: `O arquivo PDF "${file.originalName}" foi processado e está disponível para análise.`,
-            processed: true,
-            fileId: fileUpload.id
-          };
-        }
-      } catch (pdfError) {
-        console.error('Erro ao processar PDF:', pdfError);
-        
-        processingResult = {
-          success: false,
-          content: null,
-          message: `Arquivo PDF "${file.originalName}" foi enviado, mas não pôde ser processado automaticamente devido a limitações técnicas. Por favor, descreva o conteúdo do documento ou faça perguntas específicas sobre ele.`,
-          processed: false
-        };
-      }
     }
-    // Para outros tipos de documentos, apenas informe que o arquivo foi recebido
+    // PDF: extração local
+    else if (file.mimetype === 'application/pdf') {
+      console.log(`Extraindo PDF: ${file.originalName}`);
+      const buffer = await readFile(file.path);
+      const data = await pdfParse(buffer);
+      let text = data.text || '';
+      if (text.length > 10000) {
+        text = text.slice(0, 10000) + '... [truncated]';
+      }
+      console.log(`PDF extraído (${file.originalName}): ${text.length} chars`);
+      result = {
+        success: true,
+        content: text,
+        message: `Conteúdo de "${file.originalName}":\n\n${text}`,
+        processed: true,
+        originalName: file.originalName
+      };
+    }
+    // Outros tipos
     else {
-      processingResult = {
+      result = {
         success: true,
         content: null,
-        message: `Arquivo "${file.originalName}" (${file.mimetype}) foi recebido, mas o processamento automático não está disponível para este formato. Por favor, descreva o conteúdo do documento ou faça perguntas específicas sobre ele.`,
-        processed: false
+        message: `Arquivo "${file.originalName}" (${file.mimetype}) recebido. Descreva ou questione o conteúdo.`,
+        processed: false,
+        originalName: file.originalName
       };
     }
-  } catch (processingError) {
-    console.error('Erro ao processar conteúdo do arquivo:', processingError);
-    
-    processingResult = {
+  } catch (err) {
+    console.error('Erro processando arquivo:', err);
+    result = {
       success: false,
       content: null,
-      message: `Ocorreu um erro ao processar o arquivo "${file.originalName}". O arquivo foi salvo, mas seu conteúdo não pôde ser extraído automaticamente.`,
-      processed: false
+      message: `Falha ao processar "${file.originalName}".`,
+      processed: false,
+      originalName: file.originalName
     };
   }
 
-  return processingResult;
-};
+  return result;
+}
 
-// Pré-processar arquivo antes de enviar mensagem
+// Exportar a função para uso em chatController
+exports.processFileContent = processFileContent;
+
+/**
+ * Preprocessa arquivo antes de enviar mensagem
+ */
 exports.preprocessFile = async (req, res) => {
   try {
-    // Log para debug
-    console.log('Iniciando pré-processamento de arquivo');
-    
-    // Verificar se há arquivos no upload
-    if (!req.file) {
-      return res.status(400).json({ message: 'Nenhum arquivo enviado' });
-    }
-    
-    console.log(`Arquivo recebido: ${req.file.originalname}, tipo: ${req.file.mimetype}`);
-    
-    // Salvar o arquivo temporariamente (já feito pelo multer)
+    if (!req.file) return res.status(400).json({ message: 'Nenhum arquivo enviado' });
     const file = {
       originalName: req.file.originalname,
       filename: req.file.filename,
@@ -118,61 +101,33 @@ exports.preprocessFile = async (req, res) => {
       mimetype: req.file.mimetype,
       size: req.file.size
     };
+    const exists = await fsExists(file.path);
+    if (!exists) return res.status(500).json({ message: 'Arquivo não encontrado no servidor' });
 
-    // Verificar se o arquivo existe fisicamente no sistema
-    const fileExists = await fsExists(file.path);
-    if (!fileExists) {
-      console.error(`Arquivo não encontrado no caminho: ${file.path}`);
-      return res.status(500).json({ message: 'Erro ao processar arquivo: arquivo não encontrado no servidor' });
-    }
-
-    console.log('Arquivo encontrado, iniciando processamento de conteúdo');
-    
-    // Processar o conteúdo do arquivo
-    const processingResult = await processFileContent(file);
-    console.log('Processamento concluído:', processingResult.success ? 'Sucesso' : 'Falha');
-    
-    // Incluir informações do arquivo na resposta
+    const processing = await processFileContent(file);
     return res.status(200).json({
       message: 'Arquivo pré-processado com sucesso',
-      file: {
-        ...file,
-        tempId: req.file.filename.split('-')[0] // Usar parte do nome como ID temporário
-      },
-      processing: processingResult
+      file: { ...file, tempId: file.filename.split('-')[0] },
+      processing
     });
   } catch (error) {
-    console.error('Erro ao pré-processar arquivo:', error);
+    console.error('Erro no pré-processamento:', error);
     return res.status(500).json({ message: 'Erro no servidor' });
   }
 };
 
-// Upload de arquivo para uma mensagem existente
+/**
+ * Upload de arquivo vinculado a mensagem existente
+ */
 exports.uploadFile = async (req, res) => {
   try {
     const { messageId } = req.params;
-    
-    // Verificar se a mensagem existe
-    const message = await Message.findByPk(messageId, {
-      include: [{ model: Chat }]
-    });
-    
-    if (!message) {
-      return res.status(404).json({ message: 'Mensagem não encontrada' });
-    }
-    
-    // Verificar se o chat pertence ao usuário
-    if (message.Chat.UserId !== req.user.id) {
-      return res.status(403).json({ message: 'Acesso negado' });
-    }
-    
-    // Verificar se há arquivos no upload
-    if (!req.file) {
-      return res.status(400).json({ message: 'Nenhum arquivo enviado' });
-    }
-    
-    // Criar registro do arquivo
-    const file = await File.create({
+    const message = await Message.findByPk(messageId, { include: [Chat] });
+    if (!message) return res.status(404).json({ message: 'Mensagem não encontrada' });
+    if (!req.file) return res.status(400).json({ message: 'Nenhum arquivo enviado' });
+    if (message.Chat.UserId !== req.user.id) return res.status(403).json({ message: 'Acesso negado' });
+
+    const fileRecord = await File.create({
       originalName: req.file.originalname,
       filename: req.file.filename,
       path: req.file.path,
@@ -181,58 +136,44 @@ exports.uploadFile = async (req, res) => {
       MessageId: messageId
     });
 
-    // O arquivo já foi processado antes da mensagem ser enviada
-    // Não precisamos criar uma mensagem do sistema aqui,
-    // pois o conteúdo já foi incluído na mensagem do usuário
-    
-    return res.status(201).json({
-      message: 'Arquivo enviado com sucesso',
-      file
+    const processing = await processFileContent({
+      originalName: fileRecord.originalName,
+      filename: fileRecord.filename,
+      path: fileRecord.path,
+      mimetype: fileRecord.mimetype,
+      size: fileRecord.size
     });
+
+    const systemMessage = await Message.create({
+      content: processing.message,
+      sender: 'system',
+      ChatId: message.ChatId
+    });
+
+    return res.status(201).json({ message: 'Arquivo enviado com sucesso', file: fileRecord, systemMessage });
   } catch (error) {
-    console.error('Erro ao fazer upload de arquivo:', error);
+    console.error('Erro ao enviar arquivo:', error);
     return res.status(500).json({ message: 'Erro no servidor' });
   }
 };
 
-// Excluir arquivo
+/**
+ * Excluir arquivo físico e registro
+ */
 exports.deleteFile = async (req, res) => {
   try {
     const { fileId } = req.params;
-    
-    // Buscar o arquivo
-    const file = await File.findByPk(fileId, {
-      include: [{
-        model: Message,
-        include: [{ model: Chat }]
-      }]
-    });
-    
-    if (!file) {
-      return res.status(404).json({ message: 'Arquivo não encontrado' });
-    }
-    
-    // Verificar se o chat pertence ao usuário
-    if (file.Message.Chat.UserId !== req.user.id) {
-      return res.status(403).json({ message: 'Acesso negado' });
-    }
-    
-    // Verificar se o arquivo existe antes de tentar excluí-lo
+    const file = await File.findByPk(fileId, { include: [{ model: Message, include: [Chat] }] });
+    if (!file) return res.status(404).json({ message: 'Arquivo não encontrado' });
+    if (file.Message.Chat.UserId !== req.user.id) return res.status(403).json({ message: 'Acesso negado' });
+
     if (fs.existsSync(file.path)) {
-      // Excluir o arquivo do sistema de arquivos
       fs.unlink(file.path, async (err) => {
-        if (err) {
-          console.error('Erro ao excluir arquivo do disco:', err);
-        }
-        
-        // Excluir o registro do banco de dados
+        if (err) console.error('Erro ao excluir do disco:', err);
         await file.destroy();
-        
         return res.status(200).json({ message: 'Arquivo excluído com sucesso' });
       });
     } else {
-      console.warn(`Arquivo não encontrado no disco: ${file.path}`);
-      // Excluir apenas o registro do banco de dados
       await file.destroy();
       return res.status(200).json({ message: 'Registro do arquivo excluído com sucesso' });
     }
