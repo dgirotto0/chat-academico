@@ -12,14 +12,16 @@ const Login = () => {
       const response = await api.post('/auth/login', { email, password });
       const { token, user } = response.data;
 
+      if (user.mustResetPassword) {
+        setUser(user);
+        setToken(token);
+        navigate('/reset-password');
+        return;
+      }
+
       setUser(user);
       setToken(token);
-
-      if (user.mustResetPassword) {
-        navigate('/reset-password');
-      } else {
-        navigate('/app/chat');
-      }
+      navigate('/app/chat');
     } catch (error) {
       console.error('Login failed', error);
     }
