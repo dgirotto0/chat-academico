@@ -214,7 +214,7 @@ Se o usuário enviou arquivos, analise seu conteúdo quando solicitado. Mantenha
     const openaiResponse = await openai.chat.completions.create({
       model: 'gpt-4o',
       messages,
-      max_tokens: 30000
+      max_tokens: 16384
     });
 
     const aiResponseContent = openaiResponse.choices[0].message.content;
@@ -365,14 +365,14 @@ Se o usuário enviou arquivos, analise seu conteúdo quando solicitado. Mantenha
     console.log('Enviando requisição para OpenAI com opções:', JSON.stringify({
       model: 'gpt-4o',
       messages,
-      max_tokens: 30000
+      max_tokens: 16384
     }, null, 2));
 
     // Chamar OpenAI
     const openaiResponse = await openai.chat.completions.create({
       model: 'gpt-4o',
       messages,
-      max_tokens: 30000
+      max_tokens: 16384
     });
 
     const aiResponseContent = openaiResponse.choices[0].message.content;
@@ -557,7 +557,7 @@ Se o usuário enviou arquivos, analise seu conteúdo quando solicitado. Mantenha
     const openaiResponse = await openai.chat.completions.create({
       model: 'gpt-4o',
       messages,
-      max_tokens: 30000
+      max_tokens: 16384
     });
 
     const aiResponseContent = openaiResponse.choices[0].message.content;
