@@ -89,7 +89,10 @@ const fileFilter = (req, file, cb) => {
     'application/zip',
     'application/x-zip-compressed',
     'application/x-rar-compressed',
-    'application/x-7z-compressed'
+    'application/x-7z-compressed',
+    
+    // SubRip Subtitle
+    'application/x-subrip' // Adiciona suporte a .srt se desejar
   ];
   
   // Verificar também por extensão para casos onde o mimetype não é detectado corretamente
@@ -109,7 +112,9 @@ const fileFilter = (req, file, cb) => {
     // Dados científicos
     'mat', 'h5', 'hdf5', 'nc', 'cdf',
     // Compactados
-    'zip', 'rar', '7z'
+    'zip', 'rar', '7z',
+    // SubRip Subtitle
+    'srt'
   ];
   
   if (allowedTypes.includes(file.mimetype) || allowedExtensions.includes(fileExt)) {

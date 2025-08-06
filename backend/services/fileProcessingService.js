@@ -195,7 +195,7 @@ class FileProcessingService {
       // Processar por tipo
       if (this.isImageFile(mimeType, fileExt)) {
         console.log('=== DETECTADO COMO IMAGEM ===');
-        const imageResult = await this.processImageFile(filePath, originalName);
+        const imageResult = await this.processImageFile(filePath, originalName, mimeType);
         content = imageResult.content;
         metadata.isImage = true;
         metadata.needsVision = true;
@@ -327,7 +327,7 @@ class FileProcessingService {
   }
 
   // Processadores específicos
-  static async processImageFile(filePath, originalName) {
+  static async processImageFile(filePath, originalName, mimeType) {
     try {
       const imageBuffer = await fs.readFile(filePath);
       const base64Image = imageBuffer.toString('base64');
@@ -347,7 +347,7 @@ class FileProcessingService {
         content: JSON.stringify({
           type: 'image',
           originalName,
-          mimeType: this.getMimeType(originalName),
+          mimeType,
           base64: base64Image.length > 1000000 ? base64Image.substring(0, 1000000) + '...' : base64Image // Limitar tamanho
         }),
         analysis: `Imagem ${originalName} processada e pronta para análise visual.`
