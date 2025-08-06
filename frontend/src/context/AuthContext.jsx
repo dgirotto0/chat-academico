@@ -12,16 +12,14 @@ const Login = () => {
       const response = await api.post('/auth/login', { email, password });
       const { token, user } = response.data;
 
-      if (user.mustResetPassword) {
-        // Se o backend retornar token, use: navigate(`/reset-password?token=${token}`);
-        navigate('/reset-password');
-        return;
-      }
-
       setUser(user);
       setToken(token);
 
-      navigate('/'); // ou para a dashboard principal
+      if (user.mustResetPassword) {
+        navigate('/reset-password');
+      } else {
+        navigate('/app/chat');
+      }
     } catch (error) {
       console.error('Login failed', error);
     }
