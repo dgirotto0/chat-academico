@@ -11,10 +11,16 @@ const Login = () => {
     try {
       const response = await api.post('/auth/login', { email, password });
       const { token, user } = response.data;
+
+      if (user.mustResetPassword) {
+        // Se o backend retornar token, use: navigate(`/reset-password?token=${token}`);
+        navigate('/reset-password');
+        return;
+      }
+
       setUser(user);
       setToken(token);
 
-      // Remover redirecionamento para alteração obrigatória de senha
       navigate('/'); // ou para a dashboard principal
     } catch (error) {
       console.error('Login failed', error);
