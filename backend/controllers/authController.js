@@ -2,8 +2,6 @@ const { User } = require('../models');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const db = require('../config/database'); // ajuste conforme sua conexão
-const { sendPasswordResetEmail } = require('../services/emailService');
-const crypto = require('crypto');
 
 // Gerar token JWT
 const generateToken = (userId) => {
@@ -140,9 +138,9 @@ exports.changePassword = async (req, res) => {
       return res.status(400).json({ message: 'Senha atual incorreta' });
     }
     
-    // Atualizar senha e mustResetPassword
-    user.password = await bcrypt.hash(newPassword, 10);
-    user.mustResetPassword = false;
+    // Atualizar senha
+    user.password = newPassword;
+    user.requirePasswordReset = false;
     await user.save();
     
     res.json({ message: 'Senha alterada com sucesso' });
@@ -152,31 +150,12 @@ exports.changePassword = async (req, res) => {
   }
 };
 
-// Esqueci a senha
+// Esqueci a senha (placeholder)
 exports.forgotPassword = async (req, res) => {
   try {
     const { email } = req.body;
-
-    // Buscar usuário
-    const user = await User.findOne({ where: { email } });
-    if (!user) {
-      // Não revela se o email existe por segurança
-      return res.json({ message: 'Email de redefinição enviado' });
-    }
-
-    // Gerar token aleatório
-    const token = crypto.randomBytes(32).toString('hex');
-    const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hora
-
-    // Salvar token na tabela
-    await db.query(
-      'INSERT INTO password_reset_tokens (user_id, token, expires_at, used) VALUES (?, ?, ?, ?)',
-      { replacements: [user.id, token, expiresAt, false] }
-    );
-
-    // Enviar e-mail com link de redefinição
-    await sendPasswordResetEmail(user, token);
-
+    
+    // Implementar lógica de envio de email para redefinição de senha
     res.json({ message: 'Email de redefinição enviado' });
   } catch (error) {
     console.error('Erro ao enviar email de redefinição:', error);
@@ -184,38 +163,9 @@ exports.forgotPassword = async (req, res) => {
   }
 };
 
-// Redefinição obrigatória (primeiro acesso, usuário autenticado)
+// Redefinir senha
 exports.resetPassword = async (req, res) => {
-  const { newPassword, currentPassword } = req.body;
-  const user = req.user;
-
-  if (!user) {
-    return res.status(401).json({ message: 'Autenticação obrigatória.' });
-  }
-
-  // Se enviado currentPassword, valida antes de alterar
-  if (currentPassword) {
-    const isValidPassword = await user.checkPassword(currentPassword);
-    if (!isValidPassword) {
-      return res.status(400).json({ message: 'Senha atual incorreta' });
-    }
-  }
-
-  if (!newPassword || newPassword.length < 6) {
-    return res.status(400).json({ message: 'Nova senha inválida.' });
-  }
-
-  user.password = await bcrypt.hash(newPassword, 10);
-  user.mustResetPassword = false;
-  await user.save();
-
-  return res.json({ message: 'Senha alterada com sucesso.' });
-};
-
-// Redefinição via token (esqueci minha senha)
-exports.resetPasswordWithToken = async (req, res) => {
   const { token, newPassword } = req.body;
-
   if (!token || !newPassword) {
     return res.status(400).json({ message: 'Token e nova senha são obrigatórios.' });
   }
@@ -239,7 +189,7 @@ exports.resetPasswordWithToken = async (req, res) => {
     }
 
     // Atualizar senha e mustResetPassword
-    user.password = newPassword; // Se o hash é feito no model
+    user.password = await bcrypt.hash(newPassword, 10);
     user.mustResetPassword = false;
     await user.save();
 

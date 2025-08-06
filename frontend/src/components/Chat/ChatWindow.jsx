@@ -374,7 +374,6 @@ const ChatWindow = ({ chatId, onChatUpdated }) => {
     setSelectedFile(null);
     setFileProcessed(false);
     setFileContent(null);
-    showInfo('Seleção de arquivo cancelada');
   };
 
   const scrollToBottom = () => {

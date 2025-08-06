@@ -28,7 +28,6 @@ const Login = () => {
   const [subscriptionStatus, setSubscriptionStatus] = useState(null);
   const [subscriptionMessage, setSubscriptionMessage] = useState('');
   const { login, forgotPassword, isAuthenticated, loading, error, mustResetPassword } = useAuth();
-  const { showSuccess, showError } = useNotification();
   const navigate = useNavigate();
   
   // Forgot password states
@@ -38,15 +37,10 @@ const Login = () => {
   const [forgotError, setForgotError] = useState('');
   const [forgotLoading, setForgotLoading] = useState(false);
 
-  // Redirecionar se já estiver autenticado
+  // Redirecionar se já estiver autenticado e não precisa resetar
   useEffect(() => {
-    if (isAuthenticated) {
-      if (mustResetPassword) {
-        // Só redireciona se realmente precisar
-        navigate('/reset-password');
-      } else {
-        navigate('/app/chat');
-      }
+    if (isAuthenticated && !mustResetPassword) {
+      navigate('/app/chat');
     }
   }, [isAuthenticated, mustResetPassword, navigate]);
 
@@ -82,22 +76,13 @@ const Login = () => {
 
     try {
       const result = await login(email, password);
-      
       if (result.success) {
-        if (Boolean(result.mustResetPassword) === true) {
-          console.log('User must reset password, redirecting to reset page');
-        } else {
-          console.log('User login successful, redirecting to chat');
-          showSuccess('Login realizado com sucesso!');
-          navigate('/app/chat');
-        }
+        navigate('/app/chat');
       } else if (result.status) {
         setSubscriptionStatus(result.status);
         setSubscriptionMessage(result.message);
       }
     } catch (error) {
-      console.error('Login error:', error);
-      showError('Erro ao fazer login. Verifique suas credenciais.');
     }
   };
 

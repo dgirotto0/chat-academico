@@ -49,7 +49,6 @@ const ChatSidebar = ({ chats, selectedChat, onSelectChat, onChatCreated, onChatD
   const handleCreateChat = async () => {
     try {
       setCreatingChat(true);
-      showInfo('Criando nova conversa...');
       const response = await chatApi.createChat(newChatTitle || 'Nova Conversa');
       onChatCreated(response.data.chat);
       setIsDialogOpen(false);
@@ -98,7 +97,6 @@ const ChatSidebar = ({ chats, selectedChat, onSelectChat, onChatCreated, onChatD
   const handleDeleteChat = async () => {
     try {
       setDeletingChat(true);
-      showInfo('Excluindo conversa...');
       await chatApi.deleteChat(chatToDelete);
       onChatDeleted(chatToDelete);
       

@@ -21,7 +21,7 @@ const AdminDashboard = () => {
   const [editingUser, setEditingUser] = useState(null);
   
   const { user: currentUser } = useAuth();
-  const { showSuccess, showError, showInfo } = useNotification();
+  const { showSuccess, showError } = useNotification();
   const navigate = useNavigate();
 
   // Criar uma versão memoizada da função fetchUsers com useCallback
@@ -32,7 +32,6 @@ const AdminDashboard = () => {
       setUsers(response.data);
     } catch (error) {
       console.error('Erro ao buscar usuários:', error);
-      showError('Erro ao carregar usuários. Tente novamente.');
     } finally {
       setLoading(false);
     }
@@ -58,13 +57,10 @@ const AdminDashboard = () => {
   // Excluir usuário
   const handleDeleteUser = async (userId) => {
     try {
-      showInfo('Excluindo usuário...');
       await adminApi.deleteUser(userId);
       setUsers(prev => prev.filter(u => u.id !== userId));
-      showSuccess('Usuário excluído com sucesso!');
     } catch (error) {
       console.error('Erro ao excluir usuário:', error);
-      showError('Erro ao excluir usuário. Tente novamente.');
     }
   };
 
@@ -77,10 +73,7 @@ const AdminDashboard = () => {
         // Atualizar usuário existente
         const response = await adminApi.updateUser(userId, userData);
         setUsers(prev => prev.map(u => u.id === userId ? response.data.user : u));
-        showSuccess('Usuário atualizado com sucesso!');
       } else {
-        // Criar novo usuário
-        showInfo('Criando novo usuário...');
         const response = await adminApi.createUser(userData);
         setUsers(prev => [...prev, response.data.user]);
         showSuccess('Usuário criado com sucesso!');
@@ -89,7 +82,6 @@ const AdminDashboard = () => {
       setFormOpen(false);
     } catch (error) {
       console.error('Erro ao salvar usuário:', error);
-      showError(error.response?.data?.message || 'Erro ao salvar usuário. Tente novamente.');
     } finally {
       setFormLoading(false);
     }
