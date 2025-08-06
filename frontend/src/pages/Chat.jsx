@@ -2,61 +2,111 @@ import React, { useState, useEffect } from 'react';
 import { Box, CircularProgress, useTheme, useMediaQuery } from '@mui/material';
 import { motion, AnimatePresence } from 'framer-motion';
 import Header from '../components/Layout/Header';
-import ChatSidebar from '../components/Chat/ChatSidebar';
+import ChatList from '../components/Chat/ChatList';
 import ChatWindow from '../components/Chat/ChatWindow';
 import { chatApi } from '../services/api';
-import { Menu as MenuIcon } from '@mui/icons-material';
+import { useNotification } from '../contexts/NotificationContext';
 
 const Chat = () => {
   const [chats, setChats] = useState([]);
-  const [selectedChat, setSelectedChat] = useState(null);
+  const [selectedChatId, setSelectedChatId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [pendingChatId, setPendingChatId] = useState(null);
+  const [creatingChat, setCreatingChat] = useState(false);
+  const { showError } = useNotification();
   
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
-  // Fechar sidebar automaticamente em telas pequenas
   useEffect(() => {
     setSidebarOpen(!isMobile);
   }, [isMobile]);
 
-  // Buscar chats ao carregar a página
   useEffect(() => {
     fetchChats();
+    // eslint-disable-next-line
   }, []);
-
-  // Selecionar o primeiro chat disponível ao carregar
-  useEffect(() => {
-    if (chats.length > 0 && !selectedChat) {
-      setSelectedChat(chats[0].id);
-    }
-  }, [chats, selectedChat]);
 
   const fetchChats = async () => {
     try {
       setLoading(true);
       const response = await chatApi.getChats();
-      setChats(response.data);
+      const chatsData = Array.isArray(response.data)
+        ? response.data.filter(chat => chat && typeof chat === 'object' && chat.id)
+        : [];
+      setChats(chatsData);
+
+      if (chatsData.length > 0 && !selectedChatId) {
+        setSelectedChatId(chatsData[0].id);
+      }
     } catch (error) {
       console.error('Erro ao buscar chats:', error);
+      setChats([]);
+      showError('Erro ao carregar conversas');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleChatCreated = (newChat) => {
-    setChats(prev => [newChat, ...prev]);
+  const handleChatSelect = (chatId) => {
+    setSelectedChatId(chatId);
+    if (isMobile) setSidebarOpen(false);
   };
 
-  const handleChatUpdated = (updatedChat) => {
-    setChats(prev => prev.map(chat => 
-      chat.id === updatedChat.id ? updatedChat : chat
-    ));
+  const handleChatUpdated = (newChatId, forceReload, optimisticMessages) => {
+    // Se for uma nova conversa com mensagens otimistas
+    if (newChatId && optimisticMessages) {
+      setSelectedChatId(newChatId);
+      // A ChatWindow irá lidar com as mensagens otimistas
+    } else if (forceReload) {
+      fetchChats().then(() => {
+        if (newChatId) {
+          setSelectedChatId(newChatId);
+        }
+      });
+    } else {
+      fetchChats();
+    }
   };
 
-  const handleChatDeleted = (chatId) => {
-    setChats(prev => prev.filter(chat => chat.id !== chatId));
+  const handleNewChat = () => {
+    setCreatingChat(false); // Não é mais necessário um estado de criação separado
+    setSelectedChatId(null);
+  };
+
+  const handleFirstMessageSent = async (messageContent) => {
+    try {
+      const response = await chatApi.createChat();
+      const newChat = response.data.chat;
+      
+      setCreatingChat(false);
+      setSelectedChatId(newChat.id);
+  
+      const messageResponse = await chatApi.sendMessage(newChat.id, messageContent);
+      
+      await fetchChats();
+      
+    } catch (error) {
+      showError('Erro ao criar conversa');
+      setCreatingChat(false);
+    }
+  };
+
+  const handleDeleteChat = async (chatId) => {
+    try {
+      await chatApi.deleteChat(chatId);
+      
+      setChats(prev => prev.filter(chat => chat.id !== chatId));
+      
+      if (selectedChatId === chatId) {
+        const remainingChats = chats.filter(chat => chat.id !== chatId);
+        setSelectedChatId(remainingChats.length > 0 ? remainingChats[0].id : null);
+      }
+    } catch (error) {
+      console.error('Erro ao deletar chat:', error);
+      throw error;
+    }
   };
 
   const toggleSidebar = () => {
@@ -98,10 +148,12 @@ const Chat = () => {
         display: 'flex', 
         flexGrow: 1, 
         overflow: 'hidden',
-        mt: 8, // Compensar a altura do Header
-        position: 'relative'
+        position: 'relative',
+        pt: { xs: 7, sm: 8, md: 8 },
+        [theme.breakpoints.up('sm')]: {
+          pt: theme.mixins.toolbar.minHeight || 64
+        }
       }}>
-        {/* Sidebar com animação */}
         <AnimatePresence>
           {sidebarOpen && (
             <motion.div
@@ -117,25 +169,24 @@ const Chat = () => {
                 position: isMobile ? 'absolute' : 'relative',
                 zIndex: 10,
                 height: '100%',
+                width: isMobile ? '300px' : '350px',
                 boxShadow: isMobile ? '0px 0px 15px rgba(0,0,0,0.1)' : 'none'
               }}
             >
-              <ChatSidebar 
+              <ChatList 
                 chats={chats}
-                selectedChat={selectedChat}
-                onSelectChat={(id) => {
-                  setSelectedChat(id);
-                  if (isMobile) setSidebarOpen(false);
-                }}
-                onChatCreated={handleChatCreated}
-                onChatUpdated={handleChatUpdated}
-                onChatDeleted={handleChatDeleted}
+                loading={loading}
+                selectedChatId={selectedChatId}
+                onChatSelect={handleChatSelect}
+                onNewChat={handleNewChat}
+                onDeleteChat={handleDeleteChat}
+                onChatUpdated={fetchChats}
+                pendingChatId={pendingChatId}
               />
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* Overlay para fechar sidebar em dispositivos móveis */}
         {isMobile && sidebarOpen && (
           <Box 
             sx={{
@@ -150,32 +201,7 @@ const Chat = () => {
             onClick={() => setSidebarOpen(false)}
           />
         )}
-        
-        {/* Botão de menu para dispositivos móveis (quando sidebar fechada) */}
-        {isMobile && !sidebarOpen && (
-          <Box 
-            sx={{
-              position: 'absolute',
-              top: 16,
-              left: 16,
-              zIndex: 5,
-              bgcolor: 'background.paper',
-              borderRadius: '50%',
-              boxShadow: 2,
-              width: 40,
-              height: 40,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer'
-            }}
-            onClick={toggleSidebar}
-          >
-            <MenuIcon />
-          </Box>
-        )}
 
-        {/* Área principal com animação sutil */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -187,7 +213,7 @@ const Chat = () => {
           }}
         >
           <ChatWindow 
-            chatId={selectedChat}
+            chatId={selectedChatId}
             onChatUpdated={handleChatUpdated}
           />
         </motion.div>

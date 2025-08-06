@@ -8,15 +8,18 @@ const File = require('./File');
 const WebhookEvent = require('./WebhookEvent');
 const HotmartEventLog = require('./HotmartEventLog');
 
-// Definir as associações entre os modelos
-User.hasMany(Chat, { onDelete: 'CASCADE' });
-Chat.belongsTo(User);
+// Associações
+User.hasMany(Chat, { foreignKey: 'UserId' });
+Chat.belongsTo(User, { foreignKey: 'UserId' });
 
-Chat.hasMany(Message, { onDelete: 'CASCADE' });
-Message.belongsTo(Chat);
+Chat.hasMany(Message, { foreignKey: 'ChatId' });
+Message.belongsTo(Chat, { foreignKey: 'ChatId' });
 
-Message.hasMany(File, { onDelete: 'CASCADE' });
-File.belongsTo(Message);
+Message.hasMany(File, { foreignKey: 'MessageId' });
+File.belongsTo(Message, { foreignKey: 'MessageId' });
+
+User.hasMany(File, { foreignKey: 'userId' });
+File.belongsTo(User, { foreignKey: 'userId' });
 
 // Exportar os modelos
 module.exports = {

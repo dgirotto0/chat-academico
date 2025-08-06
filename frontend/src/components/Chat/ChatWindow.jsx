@@ -3,15 +3,15 @@ import {
   Box, Typography, TextField, IconButton, Paper,
   CircularProgress, Divider, Avatar, Grid, Tooltip,
   InputAdornment, Grow, Fade, Zoom, Skeleton, Chip,
-  Card, CardContent, useTheme
+  Card, CardContent, useTheme, Button
 } from '@mui/material';
 import { 
   Send, AttachFile, Description, PictureAsPdf, Image, 
   AudioFile, Delete, EmojiEmotions, AutoAwesome,
-  MoreVert, Refresh, ContentCopy, Check
+  MoreVert, Refresh, ContentCopy, Check, Edit, Save, Cancel, Download
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
-import { chatApi, uploadApi } from '../../services/api';
+import { chatApi, uploadApi, filesApi } from '../../services/api';
 import { useNotification } from '../../contexts/NotificationContext';
 import LoadingButton from '../Common/LoadingButton';
 import ConfirmDialog from '../Common/ConfirmDialog';
@@ -34,6 +34,55 @@ const renderMarkdown = (text) => {
   }
 };
 
+const AssistantTypingIndicator = () => {
+  const theme = useTheme();
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3 }}
+      style={{ width: '100%' }}
+    >
+      <Box sx={{ display: 'flex', alignItems: 'center', mb: 1, mx: { xs: 0, sm: 1 } }}>
+        <Avatar sx={{ width: 32, height: 32, mr: 1, bgcolor: theme.palette.primary.main }}>AI</Avatar>
+        <Typography variant="subtitle2" color="text.secondary" sx={{ fontWeight: 500 }}>
+          Assistente
+        </Typography>
+      </Box>
+      <Card
+        elevation={0}
+        sx={{
+          p: 0,
+          borderRadius: 2,
+          bgcolor: 'background.paper',
+          border: '1px solid',
+          borderColor: 'divider',
+          display: 'inline-block',
+          minWidth: '80px',
+        }}
+      >
+        <CardContent sx={{ p: 3, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+          <motion.div
+            transition={{ repeat: Infinity, duration: 1.2, ease: "easeInOut" }}
+            animate={{ y: [0, -4, 0] }}
+            style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: theme.palette.text.secondary, margin: '0 4px' }}
+          />
+          <motion.div
+            transition={{ repeat: Infinity, duration: 1.2, ease: "easeInOut", delay: 0.2 }}
+            animate={{ y: [0, -4, 0] }}
+            style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: theme.palette.text.secondary, margin: '0 4px' }}
+          />
+          <motion.div
+            transition={{ repeat: Infinity, duration: 1.2, ease: "easeInOut", delay: 0.4 }}
+            animate={{ y: [0, -4, 0] }}
+            style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: theme.palette.text.secondary, margin: '0 4px' }}
+          />
+        </CardContent>
+      </Card>
+    </motion.div>
+  );
+};
+
 const ChatWindow = ({ chatId, onChatUpdated }) => {
   const theme = useTheme();
   const { user } = useAuth();
@@ -53,9 +102,15 @@ const ChatWindow = ({ chatId, onChatUpdated }) => {
   const [fileProcessed, setFileProcessed] = useState(false);
   const [fileContent, setFileContent] = useState(null);
   const [processingProgress, setProcessingProgress] = useState(0);  // Para acompanhar o progresso de processamento
+  const [hoveredMessageId, setHoveredMessageId] = useState(null);
+  const [editingMessageId, setEditingMessageId] = useState(null);
+  const [editingContent, setEditingContent] = useState('');
+  const [downloadingFileId, setDownloadingFileId] = useState(null); // Novo estado para o download
   const endOfMessagesRef = useRef(null);
   const fileInputRef = useRef(null);
-  const { showSuccess, showError, showInfo, showWarning } = useNotification();
+  const { showError, showInfo, showWarning } = useNotification();
+  const [creatingChat, setCreatingChat] = useState(false);
+  const [isAssistantTyping, setIsAssistantTyping] = useState(false);
 
   // Animação para as mensagens
   const messageVariants = {
@@ -74,7 +129,6 @@ const ChatWindow = ({ chatId, onChatUpdated }) => {
       setMessages(response.data);
     } catch (error) {
       console.error('Erro ao buscar mensagens:', error);
-      showError('Não foi possível carregar as mensagens. Tente novamente.');
     } finally {
       setLoading(false);
     }
@@ -83,7 +137,11 @@ const ChatWindow = ({ chatId, onChatUpdated }) => {
   // Buscar mensagens quando o chatId mudar
   useEffect(() => {
     if (chatId) {
-      setMessages([]); // Clear messages first
+      // Não limpa as mensagens se já houver uma mensagem otimista (evita piscar)
+      if (messages.length > 0 && messages.some(m => String(m.id).startsWith('temp-'))) {
+        return;
+      }
+      setMessages([]); // Limpa mensagens antigas
       fetchMessages();
     } else {
       setMessages([]);
@@ -99,50 +157,130 @@ const ChatWindow = ({ chatId, onChatUpdated }) => {
     e.preventDefault();
     if (!newMessage.trim() && !selectedFile) return;
 
+    // Se não houver chatId, significa que é uma nova conversa.
+    if (!chatId) {
+      handleCreateChatAndSendMessage(e);
+      return;
+    }
+
+    const tempUserMessage = {
+      id: `temp-${Date.now()}`,
+      content: newMessage.trim(),
+      sender: 'user',
+      createdAt: new Date().toISOString(),
+      Files: selectedFile ? [{
+        id: `temp-file-${Date.now()}`,
+        originalName: selectedFile.name,
+        mimetype: selectedFile.type,
+        size: selectedFile.size,
+        filename: selectedFile.filename // se existir
+      }] : [],
+    };
+
+    setMessages(prev => [...prev, tempUserMessage]);
+    const messageToSend = newMessage.trim();
+    const fileToSend = selectedFile;
+    setNewMessage('');
+    setSelectedFile(null);
+    setFileProcessed(false);
+    setFileContent(null);
+    setIsAssistantTyping(true);
+
     try {
       setSendingMessage(true);
-      const response = await chatApi.sendMessage(chatId, newMessage.trim(), selectedFile);
-      const { userMessage, assistantMessage } = response.data;
-      
-      // First check if the messages already exist in the state to avoid duplicates
-      const messageExists = messages.some(msg => 
-        (msg.id === userMessage.id || msg.id === assistantMessage.id)
-      );
-      
-      if (!messageExists) {
-        setMessages(prev => [...prev, userMessage, assistantMessage]);
+      const response = await chatApi.sendMessage(chatId, messageToSend, fileToSend?.preprocessed?.fileId ? fileToSend : null);
+      let { userMessage, aiMessage } = response.data;
+
+      // Corrige: sempre converte 'file' para 'Files' array
+      if (userMessage.file) {
+        userMessage.Files = [userMessage.file];
       }
-      
-      setNewMessage('');
-      setSelectedFile(null);
-      // atualizar chat...
+      // Garante que Files seja array mesmo se vier vazio
+      if (!userMessage.Files) {
+        userMessage.Files = [];
+      }
+
+      setMessages(prev => {
+        // Remove mensagem temporária
+        const newMessages = prev.filter(msg => !String(msg.id).startsWith('temp-'));
+        // Adiciona a mensagem do usuário e do assistente
+        return [...newMessages, userMessage, aiMessage];
+      });
+
+      if (onChatUpdated) {
+        onChatUpdated();
+      }
     } catch (error) {
       showError('Erro ao enviar mensagem. Tente novamente.');
+      setMessages(prev => prev.filter(msg => msg.id !== tempUserMessage.id));
     } finally {
       setSendingMessage(false);
+      setIsAssistantTyping(false);
+    }
+  };
+
+  const handleEditMessage = (message) => {
+    setEditingMessageId(message.id);
+    setEditingContent(message.content);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingMessageId(null);
+    setEditingContent('');
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingMessageId || !editingContent.trim()) return;
+
+    try {
+      setRegenerating(true);
+
+      const response = await chatApi.editMessage(chatId, editingMessageId, editingContent.trim());
+      const { updatedUserMessage, updatedAssistantMessage } = response.data;
+
+      setMessages(prev => {
+        const newMessages = [...prev];
+        const userMessageIndex = newMessages.findIndex(msg => msg.id === editingMessageId);
+        
+        if (userMessageIndex !== -1) {
+          // Atualiza a mensagem do usuário
+          newMessages[userMessageIndex] = updatedUserMessage;
+
+          // Se uma resposta do assistente foi regenerada, atualiza-a também
+          if (updatedAssistantMessage) {
+            const assistantMessageIndex = newMessages.findIndex(msg => msg.id === updatedAssistantMessage.id);
+            if (assistantMessageIndex !== -1) {
+              newMessages[assistantMessageIndex] = updatedAssistantMessage;
+            }
+          }
+        }
+        return newMessages;
+      });
+      
+      handleCancelEdit();
+
+    } catch (error) {
+    } finally {
+      setRegenerating(false);
     }
   };
 
   const handleRegenerateResponse = async (messageId) => {
     try {
       setRegenerating(true);
-      showInfo('Regenerando resposta...');
       
       // Encontrar o índice da mensagem do assistente que queremos regenerar
       const messageIndex = messages.findIndex(m => m.id === messageId);
       if (messageIndex === -1) {
-        showError('Mensagem não encontrada');
         return;
       }
       
       // Encontrar a mensagem do usuário que gerou esta resposta (mensagem anterior)
       if (messageIndex === 0 || messages[messageIndex - 1].sender !== 'user') {
-        showError('Não foi possível identificar a pergunta associada');
         return;
       }
       
       const userMessageId = messages[messageIndex - 1].id;
-      const userMessageContent = messages[messageIndex - 1].content;
       
       // Solicitar uma nova resposta baseada na mesma pergunta
       const response = await chatApi.regenerateMessage(chatId, userMessageId);
@@ -155,7 +293,6 @@ const ChatWindow = ({ chatId, onChatUpdated }) => {
         return newMessages;
       });
       
-      showSuccess('Resposta regenerada com sucesso!');
     } catch (error) {
       console.error('Erro ao regenerar resposta:', error);
       showError('Não foi possível regenerar a resposta. Tente novamente.');
@@ -202,45 +339,26 @@ const ChatWindow = ({ chatId, onChatUpdated }) => {
       setFileProcessing(true);
       setFileProcessed(false);
       setProcessingProgress(0);
-      showInfo(`Processando arquivo "${file.name}"...`);
       
-      // Processar o arquivo antes de permitir o envio da mensagem
       try {
-        // Pré-processar o arquivo para extrair seu conteúdo
         const response = await uploadApi.preprocessFile(file);
-        
-        // Armazenar o resultado do processamento
-        if (response.data.processing && response.data.processing.success) {
-          // Attach preprocessing info to the file object
+        if (response.data.success) {
           file.preprocessed = {
             success: true,
-            fileId: response.data.processing.fileId || null
+            fileId: response.data.fileId
           };
-          
           setFileProcessed(true);
-          setFileContent(response.data.processing);
-          showSuccess(`Arquivo processado e pronto para análise`);
+          setFileContent(response.data);
         } else {
-          file.preprocessed = {
-            success: false
-          };
-          
+          file.preprocessed = { success: false };
           setFileProcessed(true);
-          setFileContent({
-            success: false
-          });
+          setFileContent({ success: false });
           showWarning(`Arquivo anexado e pronto para envio`);
         }
-        
-        // Update the selected file with the preprocessed data
         setSelectedFile(file);
       } catch (error) {
-        console.error('Erro ao processar arquivo:', error);
         setFileProcessed(true);
-        setFileContent({
-          success: false
-        });
-        showError('Erro ao processar arquivo. O arquivo será anexado, mas seu conteúdo pode não ser analisado corretamente.');
+        setFileContent({ success: false });
       } finally {
         setFileProcessing(false);
         setProcessingProgress(100);
@@ -264,9 +382,12 @@ const ChatWindow = ({ chatId, onChatUpdated }) => {
   };
 
   const getFileIcon = (mimetype) => {
+    if (!mimetype) return <Description color="info" />;
     if (mimetype.startsWith('image/')) return <Image color="primary" />;
     if (mimetype === 'application/pdf') return <PictureAsPdf color="error" />;
     if (mimetype.startsWith('audio/')) return <AudioFile color="secondary" />;
+    if (mimetype.includes('spreadsheet') || mimetype.includes('excel')) return <AutoAwesome color="success" />; // Ícone para planilhas
+    if (mimetype.includes('csv')) return <AutoAwesome color="success" />;
     return <Description color="info" />;
   };
 
@@ -283,11 +404,9 @@ const ChatWindow = ({ chatId, onChatUpdated }) => {
     try {
       setDeleting(true);
       await uploadApi.deleteFile(fileToDelete.id);
-      showSuccess('Arquivo excluído com sucesso!');
       await fetchMessages();
     } catch (error) {
       console.error('Erro ao excluir arquivo:', error);
-      showError('Erro ao excluir arquivo. Tente novamente.');
     } finally {
       setDeleting(false);
       setConfirmOpen(false);
@@ -301,10 +420,8 @@ const ChatWindow = ({ chatId, onChatUpdated }) => {
       .then(() => {
         setCopiedMessageId(messageId);
         setTimeout(() => setCopiedMessageId(null), 2000);
-        showSuccess('Texto copiado para a área de transferência');
       })
       .catch(() => {
-        showError('Não foi possível copiar o texto');
       });
     setMessageToAction(null);
   };
@@ -317,43 +434,6 @@ const ChatWindow = ({ chatId, onChatUpdated }) => {
       minute: '2-digit'
     });
   };
-
-  // Quando não tem chat selecionado
-  if (!chatId) {
-    return (
-      <Box 
-        sx={{ 
-          display: 'flex', 
-          flexDirection: 'column', 
-          alignItems: 'center', 
-          justifyContent: 'center',
-          height: '100%',
-          width: '100%',
-          bgcolor: theme.palette.background.default,
-          p: 3
-        }}
-      >
-        <Fade in={true} timeout={1000}>
-          <Box sx={{ 
-            textAlign: 'center',
-            maxWidth: 600,
-            p: 4
-          }}>
-            <AutoAwesome sx={{ fontSize: 60, color: theme.palette.primary.main, mb: 2 }} />
-            <Typography variant="h5" gutterBottom color="primary" fontWeight="medium">
-              Bem-vindo ao Scientifique AI
-            </Typography>
-            <Typography variant="body1" color="text.secondary" paragraph>
-              Seu assistente especializado para pesquisa e escrita acadêmica. Selecione uma conversa existente ou inicie uma nova para começar.
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Este assistente ajuda com redação científica, estruturação de artigos, formatação acadêmica, referências bibliográficas e muito mais.
-            </Typography>
-          </Box>
-        </Fade>
-      </Box>
-    );
-  }
 
   // Preview de arquivo selecionado com barra de progresso
   const renderFilePreview = () => {
@@ -371,7 +451,8 @@ const ChatWindow = ({ chatId, onChatUpdated }) => {
             borderRadius: 2,
             bgcolor: fileProcessed ? 'rgba(46, 125, 50, 0.1)' : 'action.hover',
             position: 'relative',
-            overflow: 'hidden'
+            overflow: 'hidden',
+            width: '100%' // Garante que o preview ocupe a largura do container
           }}
         >
           {/* Barra de progresso do processamento */}
@@ -388,12 +469,12 @@ const ChatWindow = ({ chatId, onChatUpdated }) => {
           />
 
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', flexGrow: 1 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', flexGrow: 1, overflow: 'hidden' }}>
               <Box sx={{ p: 1, borderRadius: 1, bgcolor: 'background.paper', mr: 2 }}>
                 {getFileIcon(selectedFile.type)}
               </Box>
-              <Box sx={{ flexGrow: 1 }}>
-                <Typography variant="body1" sx={{ fontWeight: 500 }}>
+              <Box sx={{ flexGrow: 1, overflow: 'hidden' }}>
+                <Typography variant="body1" sx={{ fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   {selectedFile.name}
                 </Typography>
                 <Typography variant="caption" color="text.secondary">
@@ -437,6 +518,248 @@ const ChatWindow = ({ chatId, onChatUpdated }) => {
       </Grow>
     );
   };
+
+  // Nova função para criar chat e enviar primeira mensagem
+  const handleCreateChatAndSendMessage = async (e) => {
+    e.preventDefault();
+    if (!newMessage.trim() && !selectedFile) return;
+
+    const tempUserMessage = {
+      id: `temp-${Date.now()}`,
+      content: newMessage.trim(),
+      sender: 'user',
+      createdAt: new Date().toISOString(),
+      Files: selectedFile ? [{
+        id: `temp-file-${Date.now()}`,
+        originalName: selectedFile.name,
+        mimetype: selectedFile.type,
+        size: selectedFile.size,
+      }] : [],
+    };
+    
+    const messageToSend = newMessage.trim();
+    const fileToSend = selectedFile;
+    const title = messageToSend.slice(0, 40) || 'Nova Conversa';
+
+    setNewMessage('');
+    setSelectedFile(null);
+    setFileProcessed(false);
+    setFileContent(null);
+    setCreatingChat(true); // Para desabilitar o botão
+    setIsAssistantTyping(true);
+
+    try {
+      const chatRes = await chatApi.createChat({ title });
+      const newChatId = chatRes.data.chat.id;
+      
+      // Atualiza a UI para refletir o novo chat e a mensagem otimista
+      if (onChatUpdated) {
+        onChatUpdated(newChatId, false, [tempUserMessage]);
+      }
+      setMessages([tempUserMessage]);
+
+
+      const response = await chatApi.sendMessage(newChatId, messageToSend, fileToSend?.preprocessed?.fileId ? fileToSend : null);
+      const { userMessage, aiMessage } = response.data;
+
+      // Atualiza a lista de mensagens com os dados reais do servidor
+      setMessages(prev => {
+        const newMessages = prev.filter(msg => msg.id !== tempUserMessage.id);
+        return [...newMessages, userMessage, aiMessage];
+      });
+
+      // Força a atualização da lista de chats para pegar o título gerado pela IA
+      if (onChatUpdated) {
+        onChatUpdated(newChatId, true);
+      }
+
+    } catch (error) {
+      // Remove a mensagem otimista em caso de erro
+      setMessages(prev => prev.filter(msg => msg.id !== tempUserMessage.id));
+    } finally {
+      setCreatingChat(false);
+      setIsAssistantTyping(false);
+    }
+  };
+
+  const handleDownloadGeneratedFile = async (file) => {
+    setDownloadingFileId(file.filename);
+    try {
+      const response = await filesApi.downloadGeneratedFile(file.filename);
+      
+      // Cria um link temporário para iniciar o download
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', file.originalName); // Usa o nome original do arquivo
+      document.body.appendChild(link);
+      link.click();
+      
+      // Limpa o link e o objeto URL
+      link.parentNode.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
+    } catch (error) {
+      console.error('Erro ao baixar o arquivo:', error);
+      showError('Não foi possível baixar o arquivo. Tente novamente.');
+    } finally {
+      setDownloadingFileId(null);
+    }
+  };
+
+  // Quando não tem chat selecionado
+  if (!chatId) {
+    return (
+      <Box 
+        sx={{ 
+          display: 'flex', 
+          flexDirection: 'column', 
+          alignItems: 'center', 
+          justifyContent: 'flex-start',
+          height: '100%',
+          width: '100%',
+          bgcolor: theme.palette.background.default,
+          p: { xs: 2, md: 4 }
+        }}
+      >
+        <Box sx={{
+          flexGrow: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          width: '100%',
+          maxWidth: 700,
+          mx: 'auto'
+        }}>
+          <Fade in={true} timeout={1000}>
+            <Box sx={{ textAlign: 'center', mb: 4 }}>
+              <AutoAwesome sx={{ fontSize: 60, color: theme.palette.primary.main, mb: 2 }} />
+              <Typography variant="h2" color="primary" fontWeight="bold" gutterBottom>
+                Scientifique AI
+              </Typography>
+              <Typography variant="h6" color="text.secondary">
+                Como posso te ajudar hoje?
+              </Typography>
+            </Box>
+          </Fade>
+          {/* Campo de mensagem e botão de envio sempre visíveis */}
+          <Box
+            component="form"
+            onSubmit={handleCreateChatAndSendMessage}
+            sx={{
+              width: '100%',
+              maxWidth: 700,
+              mt: 2,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center'
+            }}
+          >
+            {renderFilePreview()}
+            <Box sx={{ display: 'flex', width: '100%' }}>
+              <input
+                type="file"
+                ref={fileInputRef}
+                style={{ display: 'none' }}
+                onChange={handleFileSelect}
+                aria-label="Selecionar arquivo para upload"
+              />
+              <Tooltip title="Anexar arquivo" arrow>
+                <span>
+                  <IconButton
+                    onClick={handleFileClick}
+                    disabled={creatingChat || uploading || sendingMessage || fileProcessing}
+                    color="primary"
+                    aria-label="Anexar arquivo"
+                    sx={{
+                      width: 48,
+                      height: 48,
+                      bgcolor: 'action.hover',
+                      '&:hover': { bgcolor: 'action.selected' }
+                    }}
+                  >
+                    <AttachFile />
+                  </IconButton>
+                </span>
+              </Tooltip>
+              <TextField
+                fullWidth
+                variant="outlined"
+                placeholder="Digite sua mensagem para iniciar a conversa..."
+                value={newMessage}
+                onChange={(e) => setNewMessage(e.target.value)}
+                disabled={creatingChat || uploading || sendingMessage || fileProcessing}
+                multiline
+                maxRows={4}
+                sx={{
+                  mx: 1,
+                  '.MuiOutlinedInput-root': {
+                    borderRadius: 3,
+                    bgcolor: 'background.default',
+                    transition: 'background-color 0.2s',
+                    '&:hover': {
+                      bgcolor: 'action.hover',
+                    }
+                  }
+                }}
+                InputProps={{
+                  sx: { py: 1, px: 2 },
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <Tooltip title="Emojis" arrow>
+                        <IconButton
+                          edge="end"
+                          aria-label="Inserir emoji"
+                          size="small"
+                          sx={{ mr: 0.5 }}
+                          color="primary"
+                        >
+                          <EmojiEmotions fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    </InputAdornment>
+                  )
+                }}
+                aria-label="Campo de mensagem"
+              />
+              <LoadingButton
+                variant="contained"
+                color="primary"
+                type="submit"
+                disabled={(!newMessage.trim() && !selectedFile) || creatingChat || uploading || sendingMessage || fileProcessing}
+                loading={creatingChat || sendingMessage || fileProcessing}
+                loadingPosition="center"
+                sx={{
+                  minWidth: 100,
+                  borderRadius: 3,
+                  px: 3
+                }}
+                aria-label="Enviar mensagem"
+              >
+                Enviar
+              </LoadingButton>
+            </Box>
+            <Box sx={{
+              display: 'flex',
+              justifyContent: 'center',
+              mt: 2
+            }}>
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                align="center"
+                sx={{ maxWidth: 500 }}
+              >
+                Este é um assistente de IA, suas respostas podem apresentar imprecisões.
+                Verifique sempre informações importantes com fontes confiáveis.
+              </Typography>
+            </Box>
+          </Box>
+        </Box>
+      </Box>
+    );
+  }
 
   return (
     <Box sx={{ 
@@ -485,6 +808,8 @@ const ChatWindow = ({ chatId, onChatUpdated }) => {
                     position: 'relative',
                     mx: 'auto'
                   }}
+                  onMouseEnter={() => message.sender === 'user' && setHoveredMessageId(message.id)}
+                  onMouseLeave={() => setHoveredMessageId(null)}
                 >
                   {/* Cabeçalho da mensagem com avatar e nome */}
                   <Box sx={{ 
@@ -522,6 +847,20 @@ const ChatWindow = ({ chatId, onChatUpdated }) => {
                     </Typography>
                     
                     {/* Menu de ações */}
+                    {message.sender === 'user' && hoveredMessageId === message.id && !editingMessageId && (
+                      <Box sx={{ ml: 'auto', display: 'flex', alignItems: 'center' }}>
+                        <Tooltip title="Editar mensagem">
+                          <IconButton size="small" onClick={() => handleEditMessage(message)} sx={{ mr: 0.5 }}>
+                            <Edit fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Copiar texto">
+                          <IconButton size="small" onClick={() => handleCopyMessage(message.id, message.content)}>
+                            {copiedMessageId === message.id ? <Check fontSize="small" color="success" /> : <ContentCopy fontSize="small" />}
+                          </IconButton>
+                        </Tooltip>
+                      </Box>
+                    )}
                     {message.sender === 'assistant' && (
                       <Box sx={{ ml: 'auto' }}>
                         <Tooltip title="Opções">
@@ -590,196 +929,264 @@ const ChatWindow = ({ chatId, onChatUpdated }) => {
                   </Box>
 
                   {/* Conteúdo da mensagem */}
-                  <Card
-                    elevation={0}
-                    sx={{
-                      p: 0,
-                      borderRadius: 2,
-                      bgcolor: message.sender === 'assistant' 
-                        ? 'background.paper' 
-                        : 'action.hover',
-                      overflow: 'hidden',
-                      border: '1px solid',
-                      borderColor: 'divider',
-                      position: 'relative'
-                    }}
-                  >
-                    {/* Indicador de regeneração */}
-                    {regenerating && messageToAction === message.id && (
-                      <Box sx={{ 
-                        position: 'absolute', 
-                        top: 0, 
-                        left: 0, 
-                        right: 0, 
-                        bottom: 0, 
-                        bgcolor: 'rgba(255,255,255,0.7)', 
-                        zIndex: 5,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        flexDirection: 'column'
-                      }}>
-                        <CircularProgress size={30} />
-                        <Typography variant="caption" sx={{ mt: 1 }}>
-                          Regenerando resposta...
-                        </Typography>
-                      </Box>
-                    )}
-                    
-                    <CardContent sx={{ p: 3 }}>
-                      {message.sender === 'assistant' ? (
-                        <Box
-                          sx={{
-                            color: 'text.primary',
-                            '& a': {
-                              color: 'primary.main',
-                              textDecoration: 'none',
-                              '&:hover': {
-                                textDecoration: 'underline'
-                              }
-                            },
-                            '& pre': {
-                              bgcolor: 'action.hover',
-                              p: 2,
-                              borderRadius: 1,
-                              overflowX: 'auto',
-                              fontSize: '0.875rem'
-                            },
-                            '& code': {
-                              bgcolor: 'action.hover',
-                              p: 0.5,
-                              borderRadius: 1,
-                              fontSize: '0.875rem'
-                            },
-                            '& h1, & h2, & h3, & h4': {
-                              mt: 2,
-                              mb: 1,
-                              fontWeight: 600,
-                              lineHeight: 1.2
-                            },
-                            '& ul, & ol': {
-                              pl: 3
-                            },
-                            '& blockquote': {
-                              borderLeft: '4px solid',
-                              borderColor: 'primary.light',
-                              pl: 2,
-                              ml: 0,
-                              color: 'text.secondary'
-                            }
-                          }}
-                          dangerouslySetInnerHTML={renderMarkdown(message.content)}
-                        />
-                      ) : message.sender === 'system' ? (
-                        // Renderizar mensagens do sistema (conteúdo de arquivos) de forma especial
-                        <Box
-                          sx={{
-                            bgcolor: 'info.light',
-                            color: 'info.contrastText',
-                            p: 2,
-                            borderRadius: 1,
-                            fontSize: '0.9rem',
-                            '& pre': {
-                              bgcolor: 'rgba(255,255,255,0.2)',
-                              p: 2,
-                              borderRadius: 1,
-                              overflowX: 'auto',
-                              fontSize: '0.875rem'
-                            }
-                          }}
-                        >
-                          <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', overflowWrap: 'break-word' }}>
-                            {message.content}
+                  <Box>
+                    <Card
+                      elevation={0}
+                      sx={{
+                        p: 0,
+                        borderRadius: 2,
+                        bgcolor: message.sender === 'assistant' 
+                          ? 'background.paper' 
+                          : 'action.hover',
+                        overflow: 'hidden',
+                        border: '1px solid',
+                        borderColor: 'divider',
+                        position: 'relative'
+                      }}
+                    >
+                      {/* Indicador de regeneração */}
+                      {(regenerating && (messageToAction === message.id || editingMessageId === messages[index - 1]?.id)) && (
+                        <Box sx={{ 
+                          position: 'absolute', 
+                          top: 0, 
+                          left: 0, 
+                          right: 0, 
+                          bottom: 0, 
+                          bgcolor: 'rgba(255,255,255,0.7)', 
+                          zIndex: 5,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexDirection: 'column'
+                        }}>
+                          <CircularProgress size={30} />
+                          <Typography variant="caption" sx={{ mt: 1 }}>
+                            Regenerando resposta...
                           </Typography>
                         </Box>
-                      ) : (
-                        <Typography 
-                          variant="body1" 
-                          sx={{ 
-                            whiteSpace: 'pre-wrap',
-                            overflowWrap: 'break-word'
-                          }}
-                        >
-                          {message.content}
-                        </Typography>
                       )}
                       
-                      {/* Arquivos anexados */}
-                      {message.Files && message.Files.length > 0 && (
-                        <Box sx={{ mt: 2, pt: 2, borderTop: '1px solid', borderColor: 'divider' }}>
-                          <Typography variant="subtitle2" sx={{ display: 'block', mb: 1 }}>
-                            Arquivos anexados:
+                      <CardContent sx={{ p: editingMessageId === message.id ? 2 : 3 }}>
+                        {editingMessageId === message.id ? (
+                          <Box>
+                            <TextField
+                              fullWidth
+                              multiline
+                              variant="outlined"
+                              value={editingContent}
+                              onChange={(e) => setEditingContent(e.target.value)}
+                              autoFocus
+                              sx={{ mb: 1 }}
+                            />
+                            <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
+                              <Button onClick={handleCancelEdit} size="small">Cancelar</Button>
+                              <Button onClick={handleSaveEdit} variant="contained" size="small" startIcon={<Save />}>
+                                Salvar
+                              </Button>
+                            </Box>
+                          </Box>
+                        ) : message.sender === 'assistant' ? (
+                          <Box
+                            sx={{
+                              color: 'text.primary',
+                              '& a': {
+                                color: 'primary.main',
+                                textDecoration: 'none',
+                                '&:hover': {
+                                  textDecoration: 'underline'
+                                }
+                              },
+                              '& pre': {
+                                bgcolor: 'action.hover',
+                                p: 2,
+                                borderRadius: 1,
+                                overflowX: 'auto',
+                                fontSize: '0.875rem'
+                              },
+                              '& code': {
+                                bgcolor: 'action.hover',
+                                p: 0.5,
+                                borderRadius: 1,
+                                fontSize: '0.875rem'
+                              },
+                              '& h1, & h2, & h3, & h4': {
+                                mt: 2,
+                                mb: 1,
+                                fontWeight: 600,
+                                lineHeight: 1.2
+                              },
+                              '& ul, & ol': {
+                                pl: 3
+                              },
+                              '& blockquote': {
+                                borderLeft: '4px solid',
+                                borderColor: 'primary.light',
+                                pl: 2,
+                                ml: 0,
+                                color: 'text.secondary'
+                              }
+                            }}
+                            dangerouslySetInnerHTML={renderMarkdown(message.content)}
+                          />
+                        ) : message.sender === 'system' ? (
+                          // Renderizar mensagens do sistema (conteúdo de arquivos) de forma especial
+                          <Box
+                            sx={{
+                              bgcolor: 'info.light',
+                              color: 'info.contrastText',
+                              p: 2,
+                              borderRadius: 1,
+                              fontSize: '0.9rem',
+                              '& pre': {
+                                bgcolor: 'rgba(255,255,255,0.2)',
+                                p: 2,
+                                borderRadius: 1,
+                                overflowX: 'auto',
+                                fontSize: '0.875rem'
+                              }
+                            }}
+                          >
+                            <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', overflowWrap: 'break-word' }}>
+                              {message.content}
+                            </Typography>
+                          </Box>
+                        ) : (
+                          <Typography 
+                            variant="body1" 
+                            sx={{ 
+                              whiteSpace: 'pre-wrap',
+                              overflowWrap: 'break-word'
+                            }}
+                          >
+                            {message.content}
                           </Typography>
-                          <Grid container spacing={1}>
-                            {message.Files.map((file) => (
-                              <Grid item key={file.id}>
-                                <Zoom in={true} style={{ transitionDelay: '150ms' }}>
-                                  <Box
-                                    sx={{
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      p: 1,
-                                      border: '1px solid',
-                                      borderColor: 'divider',
-                                      borderRadius: 2,
-                                      bgcolor: 'background.paper',
-                                      transition: 'all 0.2s',
-                                      '&:hover': {
-                                        boxShadow: 1
-                                      }
-                                    }}
-                                  >
-                                    {getFileIcon(file.mimetype)}
-                                    <Box sx={{ ml: 1, mr: 1 }}>
-                                      <Typography variant="caption" sx={{ display: 'block' }}>
-                                        {file.originalName.length > 15 
-                                          ? file.originalName.substring(0, 15) + '...' 
-                                          : file.originalName}
-                                      </Typography>
-                                      <Typography variant="caption" color="text.secondary">
-                                        {(file.size / 1024).toFixed(1)} KB
-                                      </Typography>
-                                    </Box>
-                                    <Box sx={{ display: 'flex' }}>
-                                      <Tooltip title="Baixar arquivo" arrow>
-                                        <IconButton 
-                                          size="small"
-                                          component="a"
-                                          href={`/uploads/${file.filename}`}
-                                          target="_blank"
-                                          download
-                                          aria-label={`Baixar arquivo ${file.originalName}`}
-                                        >
-                                          <AttachFile fontSize="small" />
-                                        </IconButton>
-                                      </Tooltip>
-                                      {message.sender === 'user' && (
-                                        <Tooltip title="Excluir arquivo" arrow>
+                        )}
+                        
+                        {/* Arquivos anexados pelo usuário */}
+                        {message.Files && message.Files.length > 0 && (
+                          <Box sx={{ mt: 2, pt: 2, borderTop: '1px solid', borderColor: 'divider' }}>
+                            <Typography variant="subtitle2" sx={{ display: 'block', mb: 1 }}>
+                              Arquivos anexados:
+                            </Typography>
+                            <Grid container spacing={1}>
+                              {message.Files.map((file) => (
+                                <Grid item key={file.id}>
+                                  <Zoom in={true} style={{ transitionDelay: '150ms' }}>
+                                    <Box
+                                      sx={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        p: 1,
+                                        border: '1px solid',
+                                        borderColor: 'divider',
+                                        borderRadius: 2,
+                                        bgcolor: 'background.paper',
+                                        transition: 'all 0.2s',
+                                        '&:hover': {
+                                          boxShadow: 1
+                                        }
+                                      }}
+                                    >
+                                      {getFileIcon(file.mimetype)}
+                                      <Box sx={{ ml: 1, mr: 1 }}>
+                                        <Typography variant="caption" sx={{ display: 'block' }}>
+                                          {file.originalName.length > 15 
+                                            ? file.originalName.substring(0, 15) + '...' 
+                                            : file.originalName}
+                                        </Typography>
+                                        <Typography variant="caption" color="text.secondary">
+                                          {(file.size / 1024).toFixed(1)} KB
+                                        </Typography>
+                                      </Box>
+                                      <Box sx={{ display: 'flex' }}>
+                                        <Tooltip title="Baixar arquivo" arrow>
                                           <IconButton 
                                             size="small"
-                                            onClick={() => handleDeleteFileClick(file)}
-                                            color="error"
-                                            aria-label={`Excluir arquivo ${file.originalName}`}
+                                            component="a"
+                                            href={`/uploads/${file.filename}`}
+                                            target="_blank"
+                                            download
+                                            aria-label={`Baixar arquivo ${file.originalName}`}
                                           >
-                                            <Delete fontSize="small" />
+                                            <AttachFile fontSize="small" />
                                           </IconButton>
                                         </Tooltip>
-                                      )}
+                                        {message.sender === 'user' && (
+                                          <Tooltip title="Excluir arquivo" arrow>
+                                            <IconButton 
+                                              size="small"
+                                              onClick={() => handleDeleteFileClick(file)}
+                                              color="error"
+                                              aria-label={`Excluir arquivo ${file.originalName}`}
+                                            >
+                                              <Delete fontSize="small" />
+                                            </IconButton>
+                                          </Tooltip>
+                                        )}
+                                      </Box>
                                     </Box>
-                                  </Box>
-                                </Zoom>
-                              </Grid>
-                            ))}
-                          </Grid>
-                        </Box>
-                      )}
-                    </CardContent>
-                  </Card>
+                                  </Zoom>
+                                </Grid>
+                              ))}
+                            </Grid>
+                          </Box>
+                        )}
+
+                        {/* Arquivo gerado pela IA */}
+                        {message.generatedFile && (
+                          <Box sx={{ mt: 2, pt: 2, borderTop: '1px solid', borderColor: 'divider' }}>
+                            <Typography variant="subtitle2" sx={{ display: 'block', mb: 1 }}>
+                              Arquivo gerado:
+                            </Typography>
+                            <Zoom in={true}>
+                              <Paper 
+                                variant="outlined"
+                                sx={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  p: 1.5,
+                                  borderRadius: 2,
+                                  bgcolor: 'background.default',
+                                  maxWidth: 350
+                                }}
+                              >
+                                {getFileIcon(message.generatedFile.mimeType)}
+                                <Box sx={{ ml: 1.5, mr: 1.5, overflow: 'hidden' }}>
+                                  <Typography variant="body2" sx={{ fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                    {message.generatedFile.originalName}
+                                  </Typography>
+                                  <Typography variant="caption" color="text.secondary">
+                                    {message.generatedFile.mimeType}
+                                  </Typography>
+                                </Box>
+                                <Tooltip title="Baixar arquivo" arrow>
+                                  <IconButton
+                                    size="small"
+                                    onClick={() => handleDownloadGeneratedFile(message.generatedFile)}
+                                    disabled={downloadingFileId === message.generatedFile.filename}
+                                    sx={{ ml: 'auto' }}
+                                  >
+                                    {downloadingFileId === message.generatedFile.filename ? (
+                                      <CircularProgress size={20} />
+                                    ) : (
+                                      <Download />
+                                    )}
+                                  </IconButton>
+                                </Tooltip>
+                              </Paper>
+                            </Zoom>
+                          </Box>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </Box>
                 </Box>
               </motion.div>
             ))
           )}
           <div ref={endOfMessagesRef} />
+
+          {isAssistantTyping && <AssistantTypingIndicator />}
 
           {loading && messages.length > 0 && (
             <Box sx={{ display: 'flex', justifyContent: 'center', my: 2 }}>

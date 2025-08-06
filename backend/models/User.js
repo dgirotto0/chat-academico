@@ -56,6 +56,8 @@ const User = sequelize.define('User', {
     allowNull: true
   }
 }, {
+  tableName: 'Users', 
+  timestamps: true,
   hooks: {
     beforeCreate: async (user) => {
       if (user.password) {
@@ -87,8 +89,8 @@ User.beforeSave(async (user) => {
 });
 
 // Método para verificar senha
-User.prototype.checkPassword = async function(password) {
-  return await bcrypt.compare(password, this.password);
+User.prototype.checkPassword = async function (password) {
+  return bcrypt.compare(password, this.password);
 };
 
 module.exports = User;

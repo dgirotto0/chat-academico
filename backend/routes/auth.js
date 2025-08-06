@@ -1,57 +1,19 @@
 const express = require('express');
-const { body } = require('express-validator');
 const authController = require('../controllers/authController');
 const { authenticate } = require('../middleware/auth');
 
 const router = express.Router();
 
-// Login - rota pública
-router.post(
-  '/login',
-  [
-    body('email').isEmail().withMessage('Digite um email válido'),
-    body('password').notEmpty().withMessage('Senha é obrigatória')
-  ],
-  authController.login
-);
+// Rotas públicas (sem autenticação)
+router.post('/login', authController.login);
+router.post('/register', authController.register);
+router.post('/forgot-password', authController.forgotPassword);
+router.post('/reset-password', authController.resetPassword);
 
-// Obter perfil - requer autenticação
-router.get('/profile', authenticate, authController.getProfile);
-
-// Redefinir senha obrigatória - requer autenticação
-router.post(
-  '/reset-password',
-  authenticate,
-  [
-    body('oldPassword').notEmpty().withMessage('Senha atual é obrigatória'),
-    body('newPassword')
-      .isLength({ min: 6 })
-      .withMessage('Nova senha deve ter pelo menos 6 caracteres')
-      .matches(/\d/)
-      .withMessage('Nova senha deve conter pelo menos um número')
-  ],
-  authController.resetRequiredPassword
-);
-
-// Esqueci minha senha - rota pública
-router.post(
-  '/forgot-password',
-  [body('email').isEmail().withMessage('Digite um email válido')],
-  authController.forgotPassword
-);
-
-// Reset via token - rota pública
-router.post(
-  '/reset-password-with-token',
-  [
-    body('token').notEmpty().withMessage('Token é obrigatório'),
-    body('newPassword')
-      .isLength({ min: 6 })
-      .withMessage('Nova senha deve ter pelo menos 6 caracteres')
-      .matches(/\d/)
-      .withMessage('Nova senha deve conter pelo menos um número')
-  ],
-  authController.resetPasswordWithToken
-);
+// Rotas protegidas (com autenticação)
+router.post('/change-password', authenticate, authController.changePassword);
+router.get('/me', authenticate, authController.getProfile);
+router.put('/me', authenticate, authController.updateProfile);
+router.post('/logout', authenticate, authController.logout);
 
 module.exports = router;

@@ -77,8 +77,6 @@ const Login = () => {
 
     try {
       const result = await login(email, password);
-      console.log('Login result:', result);
-      console.log('Must reset password:', Boolean(result.mustResetPassword));
       
       if (result.success) {
         if (Boolean(result.mustResetPassword) === true) {
@@ -205,6 +203,12 @@ const Login = () => {
                   ),
                 }}
                 aria-label="Campo de email"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleSubmit(e);
+                  }
+                }}
               />
               <TextField
                 name="password"
@@ -237,21 +241,13 @@ const Login = () => {
                   ),
                 }}
                 aria-label="Campo de senha"
-              />
-              
-              <Box sx={{ textAlign: 'right', mt: 1 }}>
-                <Link 
-                  component="button" 
-                  variant="body2" 
-                  onClick={(e) => {
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
                     e.preventDefault();
-                    setForgotDialogOpen(true);
-                  }}
-                  underline="hover"
-                >
-                  Esqueceu sua senha?
-                </Link>
-              </Box>
+                    handleSubmit(e);
+                  }
+                }}
+              />
               
               <LoadingButton
                 type="submit"
@@ -266,6 +262,19 @@ const Login = () => {
                 Entrar
               </LoadingButton>
             </form>
+            <Box sx={{ textAlign: 'right', mt: 1 }}>
+              <Link 
+                component="button" 
+                variant="body2" 
+                onClick={(e) => {
+                  e.preventDefault();
+                  setForgotDialogOpen(true);
+                }}
+                underline="hover"
+              >
+                Esqueceu sua senha?
+              </Link>
+            </Box>
           </Paper>
         </motion.div>
       </Box>

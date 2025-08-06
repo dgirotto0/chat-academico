@@ -1,7 +1,8 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: process.env.REACT_APP_API_URL || 'http://localhost:5000/api',
+  withCredentials: true
 });
 
 // Interceptor para adicionar token de autenticação
@@ -31,26 +32,27 @@ export const chatApi = {
   getChats: () => api.get('/chat'),
   createChat: (title) => api.post('/chat', { title }),
   getChatMessages: (chatId) => api.get(`/chat/${chatId}/messages`),
-  sendMessage: (chatId, content, file) => {
-    if (file) {
-      const formData = new FormData();
-      formData.append('content', content);
-      formData.append('file', file);
-      
-      // Add flag to indicate this is a preprocessed file
-      if (file.preprocessed) {
-        formData.append('preprocessed', 'true');
-        formData.append('fileId', file.preprocessed.fileId || '');
-      }
-      
-      return api.post(`/chat/${chatId}/messages`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
+  sendMessage: async (chatId, content, file) => {
+    console.log('API sendMessage chamada com:', { chatId, content, file });
+    
+    // Se houver arquivo, envie o fileId (após preprocess)
+    if (file && file.preprocessed && file.preprocessed.fileId) {
+      console.log('Enviando com fileId:', file.preprocessed.fileId);
+      return api.post(`/chat/${chatId}/messages`, {
+        content,
+        fileId: file.preprocessed.fileId
       });
     }
+    
+    console.log('Enviando sem arquivo');
     return api.post(`/chat/${chatId}/messages`, { content });
   },
+  editMessage: (chatId, messageId, content) => api.put(`/chat/${chatId}/messages/${messageId}`, { content }),
   updateChat: (chatId, title) => api.put(`/chat/${chatId}`, { title }),
-  deleteChat: (chatId) => api.delete(`/chat/${chatId}`),
+  deleteChat: (chatId) => {
+    console.log('Deletando chat:', chatId);
+    return api.delete(`/chat/${chatId}`); // Corrigido: use 'api' e não 'axios'
+  },
   regenerateMessage: (chatId, messageId) => api.post(`/chat/${chatId}/regenerate/${messageId}`),
 };
 
@@ -66,16 +68,18 @@ export const uploadApi = {
       },
     });
   },
-  uploadFile: (messageId, file) => {
-    const formData = new FormData();
-    formData.append('file', file);
-    return api.post(`/upload/${messageId}`, formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
-  },
   deleteFile: (fileId) => api.delete(`/upload/${fileId}`),
+};
+
+// API de arquivos gerados
+export const filesApi = {
+  downloadGeneratedFile: async (filename) => {
+    // Faz a requisição autenticada para obter o arquivo
+    const response = await api.get(`/files/download/generated/${filename}`, {
+      responseType: 'blob', // Essencial para lidar com dados de arquivo
+    });
+    return response;
+  }
 };
 
 // API de administração

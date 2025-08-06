@@ -4,7 +4,7 @@ import {
   TextField, FormControl, InputLabel, Select, 
   MenuItem, FormControlLabel, Switch, Grid,
   FormHelperText, IconButton, InputAdornment, 
-  Typography, Box
+  Typography, Box, Checkbox
 } from '@mui/material';
 import { 
   Visibility, VisibilityOff, 
@@ -14,13 +14,19 @@ import {
 import { motion } from 'framer-motion';
 import LoadingButton from '../Common/LoadingButton';
 
+const statusOptions = [
+  'pending', 'approved', 'refused', 'late', 'expired', 'refunded', 'canceled'
+];
+
 const UserForm = ({ open, onClose, onSave, user = null, loading }) => {
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     password: '',
     role: 'aluno',
-    active: true
+    active: true,
+    status: 'pending',
+    mustResetPassword: false
   });
   const [errors, setErrors] = useState({});
   const [touched, setTouched] = useState({});
@@ -34,7 +40,9 @@ const UserForm = ({ open, onClose, onSave, user = null, loading }) => {
         email: user.email || '',
         password: '', // Não preenchemos a senha ao editar
         role: user.role || 'aluno',
-        active: user.active !== undefined ? user.active : true
+        active: user.active !== undefined ? user.active : true,
+        status: user.status || 'pending',
+        mustResetPassword: user.mustResetPassword || false
       });
     } else {
       // Reset ao criar novo usuário
@@ -43,7 +51,9 @@ const UserForm = ({ open, onClose, onSave, user = null, loading }) => {
         email: '',
         password: '',
         role: 'aluno',
-        active: true
+        active: true,
+        status: 'pending',
+        mustResetPassword: false
       });
     }
     
@@ -85,8 +95,8 @@ const UserForm = ({ open, onClose, onSave, user = null, loading }) => {
   const handleChange = (e) => {
     const { name, value, checked } = e.target;
     
-    // Para o Switch que usa checked ao invés de value
-    const newValue = name === 'active' ? checked : value;
+    // Para o Switch e Checkbox que usam checked ao invés de value
+    const newValue = name === 'active' || name === 'mustResetPassword' ? checked : value;
     
     setFormData(prev => ({
       ...prev,
@@ -137,7 +147,9 @@ const UserForm = ({ open, onClose, onSave, user = null, loading }) => {
       name: true,
       email: true,
       password: true,
-      role: true
+      role: true,
+      status: true,
+      mustResetPassword: true
     });
     
     setErrors(newErrors);
@@ -284,6 +296,32 @@ const UserForm = ({ open, onClose, onSave, user = null, loading }) => {
               )}
             </FormControl>
           </Grid>
+
+          <Grid item xs={12}>
+            <FormControl 
+              fullWidth 
+              error={touched.status && !!errors.status}
+              disabled={loading}
+              required
+            >
+              <InputLabel id="status-label">Status</InputLabel>
+              <Select
+                labelId="status-label"
+                name="status"
+                value={formData.status}
+                onChange={handleChange}
+                onBlur={handleBlur}
+                label="Status"
+              >
+                {statusOptions.map(opt => (
+                  <MenuItem key={opt} value={opt}>{opt}</MenuItem>
+                ))}
+              </Select>
+              {touched.status && errors.status && (
+                <FormHelperText>{errors.status}</FormHelperText>
+              )}
+            </FormControl>
+          </Grid>
           
           {user && (
             <Grid item xs={12}>
@@ -305,6 +343,21 @@ const UserForm = ({ open, onClose, onSave, user = null, loading }) => {
               />
             </Grid>
           )}
+
+          <Grid item xs={12}>
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={formData.mustResetPassword}
+                  onChange={handleChange}
+                  name="mustResetPassword"
+                  color="primary"
+                  disabled={loading}
+                />
+              }
+              label="Obrigar reset de senha"
+            />
+          </Grid>
         </Grid>
       </DialogContent>
       

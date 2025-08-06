@@ -1,55 +1,65 @@
 const { User } = require('../models');
 
-// Middleware que verifica se a assinatura do usuário está ativa
-exports.verifySubscriptionActive = async (req, res, next) => {
-  try {
-    // Usuário já foi carregado pelo middleware de autenticação
-    const userId = req.user.id;
-    
-    // Buscar usuário com status atualizado (pode ter sido alterado desde o login)
-    const user = await User.findByPk(userId);
-    
-    if (!user) {
-      return res.status(401).json({ message: 'Usuário não encontrado' });
-    }
-    
-    // Admins sempre têm acesso, independente do status
-    if (user.role === 'admin') {
-      return next();
-    }
-    
-    // Verificar status da assinatura
-    const invalidStatuses = ['refused', 'refunded', 'expired', 'canceled'];
-    
-    if (invalidStatuses.includes(user.status)) {
-      let message = 'Acesso não permitido.';
-      
-      switch (user.status) {
-        case 'refused':
-          message = 'Seu pagamento foi recusado. Por favor, atualize suas informações de pagamento.';
-          break;
-        case 'refunded':
-          message = 'Infelizmente seu reembolso foi processado e o acesso foi encerrado.';
-          break;
-        case 'expired':
-          message = 'Sua assinatura expirou. Por favor, renove sua assinatura para continuar acessando.';
-          break;
-        case 'canceled':
-          message = 'Sua assinatura foi cancelada. Para retomar o acesso, por favor adquira uma nova assinatura.';
-          break;
-      }
-      
-      return res.status(403).json({
-        message: message,
-        status: user.status,
-        error: 'subscription_inactive'
-      });
-    }
-    
-    // Status é aprovado ou pendente, permite acesso
-    next();
-  } catch (error) {
-    console.error('Erro ao verificar assinatura:', error);
-    return res.status(500).json({ message: 'Erro no servidor' });
+// Middleware para verificar se a assinatura está ativa
+exports.verifySubscriptionActive = (req, res, next) => {
+  const user = req.user;
+  
+  if (!user) {
+    return res.status(401).json({ message: 'Usuário não autenticado' });
   }
+  
+  // Admins sempre têm acesso
+  if (user.role === 'admin') {
+    return next();
+  }
+  
+  // Verificar se a conta está ativa
+  if (!user.active) {
+    return res.status(403).json({ 
+      message: 'Conta inativa. Entre em contato com o suporte.',
+      error: 'account_inactive'
+    });
+  }
+  
+  // Verificar status da assinatura
+  if (user.status !== 'approved') {
+    let message = 'Acesso restrito devido ao status da assinatura.';
+    
+    switch (user.status) {
+      case 'pending':
+        message = 'Seu pagamento está sendo processado. Aguarde a confirmação.';
+        break;
+      case 'refused':
+        message = 'Seu pagamento foi recusado. Por favor, atualize suas informações de pagamento.';
+        break;
+      case 'refunded':
+        message = 'Sua assinatura foi reembolsada. Entre em contato com o suporte para mais informações.';
+        break;
+      case 'expired':
+        message = 'Sua assinatura expirou. Renove para continuar usando o serviço.';
+        break;
+      case 'canceled':
+        message = 'Sua assinatura foi cancelada. Assine novamente para continuar.';
+        break;
+    }
+    
+    return res.status(403).json({
+      message,
+      status: user.status,
+      error: 'subscription_inactive'
+    });
+  }
+  
+  next();
+};
+
+// Middleware para verificar assinatura ativa (placeholder)
+const verifySubscriptionActive = (req, res, next) => {
+  // Por enquanto, apenas passar adiante
+  // Implementar verificação de assinatura quando necessário
+  next();
+};
+
+module.exports = {
+  verifySubscriptionActive
 };

@@ -1,13 +1,29 @@
 const { Sequelize } = require('sequelize');
 require('dotenv').config();
 
+// Para Docker, usar variáveis de ambiente ou valores padrão
+const dbConfig = {
+  host: process.env.DB_HOST || 'db',
+  port: process.env.DB_PORT || 5432,
+  database: process.env.DB_NAME || 'chat_academico',
+  username: process.env.DB_USER || 'postgres',
+  password: process.env.DB_PASS || 'postgres'
+};
+
+console.log('Configuração do banco:', {
+  host: dbConfig.host,
+  port: dbConfig.port,
+  database: dbConfig.database,
+  username: dbConfig.username
+});
+
 const sequelize = new Sequelize(
-  process.env.DB_NAME,
-  process.env.DB_USER,
-  process.env.DB_PASS,
+  dbConfig.database,
+  dbConfig.username,
+  dbConfig.password,
   {
-    host: process.env.DB_HOST,
-    port: process.env.DB_PORT,
+    host: dbConfig.host,
+    port: dbConfig.port,
     dialect: 'postgres',
     logging: false,
     pool: {

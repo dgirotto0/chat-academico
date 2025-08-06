@@ -7,26 +7,31 @@ const File = sequelize.define('File', {
     autoIncrement: true,
     primaryKey: true
   },
-  originalName: {
-    type: DataTypes.STRING,
-    allowNull: false
-  },
-  filename: {
-    type: DataTypes.STRING,
-    allowNull: false
-  },
-  path: {
-    type: DataTypes.STRING,
-    allowNull: false
-  },
-  mimetype: {
-    type: DataTypes.STRING,
-    allowNull: false
-  },
-  size: {
+  originalName: DataTypes.STRING,
+  fileName: DataTypes.STRING,
+  filePath: DataTypes.STRING,
+  mimeType: DataTypes.STRING,
+  size: DataTypes.INTEGER,
+  content: DataTypes.TEXT,
+  metadata: DataTypes.JSONB,
+  processedAt: DataTypes.DATE,
+  userId: {
     type: DataTypes.INTEGER,
-    allowNull: false
+    references: {
+      model: 'Users',
+      key: 'id'
+    }
+  },
+  MessageId: {
+    type: DataTypes.INTEGER,
+    references: {
+      model: 'Messages',
+      key: 'id'
+    }
   }
+}, {
+  tableName: 'Files', // Corrigido para maiúsculo
+  timestamps: true
 });
 
 module.exports = File;

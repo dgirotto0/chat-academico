@@ -1,125 +1,142 @@
-const { User, Chat, Message } = require('../models');
+const { User, Chat, Message, File } = require('../models');
 const { validationResult } = require('express-validator');
+const bcrypt = require('bcrypt');
 
-// Listar todos os usuários (apenas admin)
+// Listar todos os usuários
 exports.getUsers = async (req, res) => {
   try {
     const users = await User.findAll({
-      attributes: ['id', 'name', 'email', 'role', 'active', 'status', 'createdAt', 'mustResetPassword']
+      attributes: { exclude: ['password'] },
+      order: [['createdAt', 'DESC']]
     });
     
-    return res.status(200).json(users);
+    res.json(users);
   } catch (error) {
-    console.error('Erro ao listar usuários:', error);
-    return res.status(500).json({ message: 'Erro no servidor' });
+    console.error('Erro ao buscar usuários:', error);
+    res.status(500).json({ message: 'Erro interno do servidor' });
   }
 };
 
-// Criar novo usuário (apenas para admin)
+// Criar novo usuário
 exports.createUser = async (req, res) => {
   try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
-    }
+    const { name, email, password, role = 'user' } = req.body;
     
-    const { name, email, password, role } = req.body;
-    
-    // Verificar se o email já está em uso
+    // Verificar se o email já existe
     const existingUser = await User.findOne({ where: { email } });
     if (existingUser) {
-      return res.status(400).json({ message: 'Este email já está em uso' });
+      return res.status(400).json({ message: 'Email já está em uso' });
     }
     
-    // Criar novo usuário
-    const newUser = await User.create({
+    // Criar usuário
+    const user = await User.create({
       name,
       email,
       password,
-      role: role || 'aluno' // Default é 'aluno'
+      role
     });
     
-    // Remover a senha da resposta
-    const userResponse = { ...newUser.get(), password: undefined };
+    // Retornar usuário sem senha
+    const { password: _, ...userWithoutPassword } = user.toJSON();
     
-    return res.status(201).json({
+    res.status(201).json({
       message: 'Usuário criado com sucesso',
-      user: userResponse
+      user: userWithoutPassword
     });
   } catch (error) {
     console.error('Erro ao criar usuário:', error);
-    return res.status(500).json({ message: 'Erro no servidor' });
+    res.status(500).json({ message: 'Erro interno do servidor' });
   }
 };
 
-// Atualizar usuário (apenas para admin)
+// Atualizar usuário
 exports.updateUser = async (req, res) => {
   try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
-    }
+    const { userId } = req.params;
+    const { name, email, role, isActive, requirePasswordReset } = req.body;
     
-    const { id } = req.params;
-    const { name, email, role, active } = req.body;
-    
-    // Buscar o usuário
-    const user = await User.findByPk(id);
+    const user = await User.findByPk(userId);
     if (!user) {
       return res.status(404).json({ message: 'Usuário não encontrado' });
     }
     
-    // Verificar se o email já está em uso (por outro usuário)
+    // Verificar se o email já existe (exceto para o próprio usuário)
     if (email && email !== user.email) {
       const existingUser = await User.findOne({ where: { email } });
       if (existingUser) {
-        return res.status(400).json({ message: 'Este email já está em uso' });
+        return res.status(400).json({ message: 'Email já está em uso' });
       }
     }
     
-    // Atualizar usuário
+    // Atualizar campos
     if (name) user.name = name;
     if (email) user.email = email;
     if (role) user.role = role;
-    if (active !== undefined) user.active = active;
+    if (typeof isActive === 'boolean') user.isActive = isActive;
+    if (typeof requirePasswordReset === 'boolean') user.requirePasswordReset = requirePasswordReset;
     
     await user.save();
     
-    // Remover a senha da resposta
-    const userResponse = { ...user.get(), password: undefined };
+    // Retornar usuário sem senha
+    const { password: _, ...userWithoutPassword } = user.toJSON();
     
-    return res.status(200).json({
+    res.json({
       message: 'Usuário atualizado com sucesso',
-      user: userResponse
+      user: userWithoutPassword
     });
   } catch (error) {
     console.error('Erro ao atualizar usuário:', error);
-    return res.status(500).json({ message: 'Erro no servidor' });
+    res.status(500).json({ message: 'Erro interno do servidor' });
   }
 };
 
-// Excluir usuário (apenas para admin)
+// Deletar usuário
 exports.deleteUser = async (req, res) => {
   try {
-    const { id } = req.params;
+    const { userId } = req.params;
     
-    // Buscar o usuário
-    const user = await User.findByPk(id);
+    const user = await User.findByPk(userId);
     if (!user) {
       return res.status(404).json({ message: 'Usuário não encontrado' });
     }
     
-    // Verificar se não está tentando excluir a si mesmo
+    // Não permitir deletar o próprio usuário admin
     if (user.id === req.user.id) {
-      return res.status(400).json({ message: 'Não é possível excluir sua própria conta' });
+      return res.status(400).json({ message: 'Não é possível deletar sua própria conta' });
     }
     
-    // Excluir usuário
     await user.destroy();
     
-    return res.status(200).json({ message: 'Usuário excluído com sucesso' });
+    res.json({ message: 'Usuário deletado com sucesso' });
   } catch (error) {
-    console.error('Erro ao excluir usuário:', error);
-    return res.status(500).json({ message: 'Erro no servidor' });
+    console.error('Erro ao deletar usuário:', error);
+    res.status(500).json({ message: 'Erro interno do servidor' });
+  }
+};
+
+// Estatísticas do sistema
+exports.getStats = async (req, res) => {
+  try {
+    const [
+      totalUsers,
+      totalChats,
+      totalMessages,
+      totalFiles
+    ] = await Promise.all([
+      User.count(),
+      Chat.count(),
+      Message.count(),
+      File.count()
+    ]);
+    
+    res.json({
+      users: totalUsers,
+      chats: totalChats,
+      messages: totalMessages,
+      files: totalFiles
+    });
+  } catch (error) {
+    console.error('Erro ao buscar estatísticas:', error);
+    res.status(500).json({ message: 'Erro interno do servidor' });
   }
 };

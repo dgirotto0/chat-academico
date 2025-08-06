@@ -6,7 +6,7 @@ import { useNavigate } from 'react-router-dom';
 const SubscriptionAlert = ({ status, message }) => {
   const navigate = useNavigate();
   
-  if (!status || status === 'approved') return null;
+  if (!status || status === 'approved' || status === 'pending') return null;
   
   // Configurações baseadas no status
   let icon = <WarningAmber />;

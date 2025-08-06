@@ -12,9 +12,24 @@ const Message = sequelize.define('Message', {
     allowNull: false
   },
   sender: {
-    type: DataTypes.ENUM('user', 'assistant', 'system'),
+    type: DataTypes.ENUM('user', 'assistant'),
     allowNull: false
+  },
+  generatedFile: {
+    type: DataTypes.JSONB,
+    allowNull: true
+  },
+  ChatId: {
+    type: DataTypes.UUID,
+    allowNull: true,
+    references: {
+      model: 'Chats',
+      key: 'id'
+    }
   }
+}, {
+  tableName: 'Messages',
+  timestamps: true
 });
 
 module.exports = Message;

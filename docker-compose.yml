@@ -10,14 +10,19 @@ services:
       POSTGRES_PASSWORD: postgres
     volumes:
       - db_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
+    networks:
+      - chat_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   backend:
     build: ./backend
     restart: always
     environment:
-      NODE_ENV: production
+      NODE_ENV: development
       DB_HOST: db
       DB_USER: postgres
       DB_PASS: postgres
@@ -26,31 +31,37 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       JWT_EXPIRES: ${JWT_EXPIRES}
       OPENAI_API_KEY: ${OPENAI_API_KEY}
-      SMTP_HOST: ${SMTP_HOST}
-      SMTP_PORT: ${SMTP_PORT}
-      SMTP_USER: ${SMTP_USER}
-      SMTP_PASS: ${SMTP_PASS}
+      MAILJET_API_KEY: ${MAILJET_API_KEY}
+      MAILJET_SECRET_KEY: ${MAILJET_SECRET_KEY}
       HOTMART_WEBHOOK_SECRET: ${HOTMART_WEBHOOK_SECRET}
-      FRONTEND_URL: http://localhost
-      PORT: 5000
+      FRONTEND_URL: ${FRONTEND_URL}
+      BACKEND_PUBLIC_URL: ${BACKEND_PUBLIC_URL}
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     ports:
       - "5000:5000"
     volumes:
-      - ./backend:/app
+      - ./backend/uploads:/app/uploads
+      - ./backend/logs:/app/logs
+    networks:
+      - chat_network
 
   frontend:
     build: ./frontend
     restart: always
-    environment:
-      - NODE_ENV=production
-    depends_on:
-      - backend
     ports:
       - "3000:80"
-    volumes:
-      - ./frontend:/app
+    depends_on:
+      - backend
+    networks:
+      - chat_network
+    environment:
+      - REACT_APP_API_URL=http://localhost:5000/api
 
 volumes:
   db_data:
+
+networks:
+  chat_network:
+    driver: bridge

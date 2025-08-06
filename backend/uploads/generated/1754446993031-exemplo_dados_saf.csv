@@ -1,0 +1,48 @@
+Para criar um gráfico relacionado aos dados fornecidos no arquivo CSV "exemplo_dados_saf.csv", podemos visualizar o valor investido em cada clube ao longo dos anos. Segue uma configuração de gráfico em JSON para Chart.js, que representa o investimento em cada clube por ano:
+
+```json
+{
+  "type": "bar",
+  "data": {
+    "labels": ["Clube Esportivo União", "Atlético Nacional SAF", "Futebol Clube Bravos", "Associação Atlética Azul", "Esporte Total SAF"],
+    "datasets": [{
+      "label": "Valor Investido (R$ Milhões)",
+      "data": [150, 200, 175, 120, 190],
+      "backgroundColor": [
+        "rgba(255, 99, 132, 0.2)",
+        "rgba(54, 162, 235, 0.2)",
+        "rgba(255, 206, 86, 0.2)",
+        "rgba(75, 192, 192, 0.2)",
+        "rgba(153, 102, 255, 0.2)"
+      ],
+      "borderColor": [
+        "rgba(255, 99, 132, 1)",
+        "rgba(54, 162, 235, 1)",
+        "rgba(255, 206, 86, 1)",
+        "rgba(75, 192, 192, 1)",
+        "rgba(153, 102, 255, 1)"
+      ],
+      "borderWidth": 1
+    }]
+  },
+  "options": {
+    "scales": {
+      "y": {
+        "beginAtZero": true,
+        "title": {
+          "display": true,
+          "text": "Valor Investido (R$ Milhões)"
+        }
+      }
+    },
+    "plugins": {
+      "title": {
+        "display": true,
+        "text": "Investimento em Clubes por Ano de Fundação"
+      }
+    }
+  }
+}
+```
+
+Este gráfico de barras ilustra o valor investido em milhões de reais para cada clube listado no arquivo CSV. Cada barra representa um clube diferente com a cor correspondente, e o eixo y mostra o valor do investimento.

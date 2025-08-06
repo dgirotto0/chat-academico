@@ -4,7 +4,7 @@ const path = require('path');
 const { body } = require('express-validator');
 const chatController = require('../controllers/chatController');
 const { authenticate, checkPasswordReset } = require('../middleware/auth');
-const { verifySubscriptionActive } = require('../middleware/subscriptionCheck');
+const { validateChatAccess, validateMessageAccess } = require('../middleware/security');
 
 // Configuração do multer para upload de arquivos
 const storage = multer.diskStorage({
@@ -24,40 +24,37 @@ const upload = multer({
 
 const router = express.Router();
 
-// Middleware para todas as rotas: autenticação, verificação de senha e assinatura
+// Middleware para todas as rotas: autenticação e verificação de senha
 router.use(authenticate);
 router.use(checkPasswordReset);
-router.use(verifySubscriptionActive);
 
-// Listar chats do usuário
+// Rotas do chat
 router.get('/', chatController.getUserChats);
-
-// Criar novo chat
 router.post('/', [
   body('title').optional().notEmpty().withMessage('Título não pode ser vazio')
 ], chatController.createChat);
 
-// Obter mensagens de um chat
-router.get('/:chatId/messages', chatController.getChatMessages);
-
-// Enviar mensagem e opcionalmente arquivo
+// Rotas que precisam de validação de acesso ao chat
+router.get('/:chatId/messages', validateChatAccess, chatController.getChatMessages);
 router.post('/:chatId/messages', 
   upload.single('file'),
+  validateChatAccess,
   [
     body('content').optional().isString().withMessage('Conteúdo da mensagem deve ser texto')
   ], 
-  chatController.sendMessage
-);
-
-// Regenerar resposta para uma mensagem
-router.post('/:chatId/regenerate/:messageId', chatController.regenerateMessage);
-
-// Atualizar título do chat
+  chatController.sendMessage);
 router.put('/:chatId', [
   body('title').notEmpty().withMessage('Título é obrigatório')
-], chatController.updateChat);
+], validateChatAccess, chatController.updateChat);
+router.delete('/:chatId', validateChatAccess, chatController.deleteChat);
+router.post('/:chatId/regenerate/:messageId', validateChatAccess, validateMessageAccess, chatController.regenerateMessage);
 
-// Excluir chat
-router.delete('/:chatId', chatController.deleteChat);
+// Editar mensagem com validação de acesso
+router.put('/:chatId/messages/:messageId', 
+  validateChatAccess, 
+  validateMessageAccess, 
+  [ body('content').notEmpty().withMessage('O conteúdo não pode ser vazio') ],
+  chatController.editMessage
+);
 
 module.exports = router;
