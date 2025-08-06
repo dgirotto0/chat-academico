@@ -38,10 +38,15 @@ const Login = () => {
   const [forgotError, setForgotError] = useState('');
   const [forgotLoading, setForgotLoading] = useState(false);
 
-  // Redirecionar se já estiver autenticado e não precisa resetar
+  // Redirecionar se já estiver autenticado
   useEffect(() => {
-    if (isAuthenticated && !mustResetPassword) {
-      navigate('/app/chat');
+    if (isAuthenticated) {
+      if (mustResetPassword) {
+        // Só redireciona se realmente precisar
+        navigate('/reset-password');
+      } else {
+        navigate('/app/chat');
+      }
     }
   }, [isAuthenticated, mustResetPassword, navigate]);
 

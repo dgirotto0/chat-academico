@@ -53,7 +53,7 @@ exports.createUser = async (req, res) => {
 exports.updateUser = async (req, res) => {
   try {
     const { userId } = req.params;
-    const { name, email, role, isActive, requirePasswordReset } = req.body;
+    const { name, email, role, active, mustResetPassword } = req.body;
     
     const user = await User.findByPk(userId);
     if (!user) {
@@ -72,8 +72,8 @@ exports.updateUser = async (req, res) => {
     if (name) user.name = name;
     if (email) user.email = email;
     if (role) user.role = role;
-    if (typeof isActive === 'boolean') user.isActive = isActive;
-    if (typeof requirePasswordReset === 'boolean') user.requirePasswordReset = requirePasswordReset;
+    if (typeof active === 'boolean') user.active = active;
+    if (typeof mustResetPassword === 'boolean') user.mustResetPassword = mustResetPassword;
     
     await user.save();
     

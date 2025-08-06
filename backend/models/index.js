@@ -5,7 +5,6 @@ const User = require('./User');
 const Chat = require('./Chat');
 const Message = require('./Message');
 const File = require('./File');
-const WebhookEvent = require('./WebhookEvent');
 const HotmartEventLog = require('./HotmartEventLog');
 
 // Associações
@@ -28,6 +27,5 @@ module.exports = {
   Chat,
   Message,
   File,
-  WebhookEvent,
   HotmartEventLog
 };

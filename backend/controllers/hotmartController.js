@@ -7,8 +7,24 @@ const { sendLoginEmail } = require('../services/emailService');
  * Valida o token estático enviado no header X-HOTMART-HOTTOK
  */
 function validateHottok(req) {
-  const hottok = req.headers['x-hotmart-hottok'];
-  return hottok && hottok === process.env.HOTMART_WEBHOOK_SECRET;
+  const hottokHeader = req.headers['x-hotmart-hottok'];
+  const hottokParam = req.params.token;
+  const secret = process.env.HOTMART_WEBHOOK_SECRET;
+  const callbackToken = process.env.CALLBACK_TOKEN;
+
+  console.log('🔒 Token recebido:', {
+    header: hottokHeader,
+    param: hottokParam,
+    secret,
+    callback: callbackToken
+  });
+
+  // Se CALLBACK_TOKEN estiver definido, ambos devem bater
+  if (callbackToken) {
+    return (hottokHeader && hottokHeader === secret) && (hottokParam && hottokParam === callbackToken);
+  }
+  // Se não, só valida o header
+  return hottokHeader && hottokHeader === secret;
 }
 
 /**

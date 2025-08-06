@@ -8,9 +8,10 @@ const router = express.Router();
 router.post('/login', authController.login);
 router.post('/register', authController.register);
 router.post('/forgot-password', authController.forgotPassword);
-router.post('/reset-password', authController.resetPassword);
+router.post('/reset-password-with-token', authController.resetPasswordWithToken);
 
 // Rotas protegidas (com autenticação)
+router.post('/reset-password', authenticate, authController.resetPassword);
 router.post('/change-password', authenticate, authController.changePassword);
 router.get('/me', authenticate, authController.getProfile);
 router.put('/me', authenticate, authController.updateProfile);

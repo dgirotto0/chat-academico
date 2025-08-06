@@ -1,7 +1,7 @@
 const { User } = require('../models');
 
 // Middleware para verificar se a assinatura está ativa
-exports.verifySubscriptionActive = (req, res, next) => {
+const verifySubscriptionActive = (req, res, next) => {
   const user = req.user;
   
   if (!user) {
@@ -50,13 +50,6 @@ exports.verifySubscriptionActive = (req, res, next) => {
     });
   }
   
-  next();
-};
-
-// Middleware para verificar assinatura ativa (placeholder)
-const verifySubscriptionActive = (req, res, next) => {
-  // Por enquanto, apenas passar adiante
-  // Implementar verificação de assinatura quando necessário
   next();
 };
 

@@ -1,4 +1,6 @@
 require('dotenv').config();
+console.log('🔑 MAILJET_API_KEY (server.js):', process.env.MAILJET_API_KEY);
+console.log('🔑 MAILJET_SECRET_KEY (server.js):', process.env.MAILJET_SECRET_KEY);
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
@@ -27,8 +29,7 @@ const adminRoutes = require('./routes/admin');
 const chatRoutes = require('./routes/chat');
 const uploadRoutes = require('./routes/upload');
 const fileRoutes = require('./routes/files'); // Adicionar esta linha
-const webhookRoutes = require('./routes/webhook');
-const callbackRoutes = require('./routes/callbackRoutes'); // Adicionar esta linha
+const hotmartRoutes = require('./routes/hotmart');
 
 // Definir rotas
 app.use('/api/auth', authRoutes);
@@ -36,8 +37,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/files', fileRoutes); // Adicionar esta linha
-app.use('/api/webhook', webhookRoutes);
-app.use('/callbacks', callbackRoutes); // Adicionar esta linha
+app.use('/callbacks/hotmart', hotmartRoutes);
 
 // Rota padrão
 app.get('/', (req, res) => {

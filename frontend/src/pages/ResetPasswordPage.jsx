@@ -26,12 +26,13 @@ const ResetPasswordPage = () => {
     const tokenParam = queryParams.get('token');
     
     if (!tokenParam) {
-      setTokenError(true);
-      setError('Token de redefinição de senha não encontrado ou inválido.');
+      // Redireciona para login se não houver token
+      navigate('/login', { replace: true });
+      return;
     } else {
       setToken(tokenParam);
     }
-  }, [location]);
+  }, [location, navigate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -57,10 +58,10 @@ const ResetPasswordPage = () => {
       
       setSuccess(true);
       
-      // Redirect to login after 3 seconds
+      // Redirect to login after 2 seconds
       setTimeout(() => {
         navigate('/login');
-      }, 3000);
+      }, 2000);
     } catch (error) {
       console.error('Erro ao redefinir senha:', error);
       

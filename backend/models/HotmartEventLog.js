@@ -10,13 +10,11 @@ const HotmartEventLog = sequelize.define('HotmartEventLog', {
   purchaseId: {
     type: DataTypes.STRING,
     allowNull: false,
-    field: 'purchase_id',
     comment: 'ID da transação ou código do assinante'
   },
   eventType: {
     type: DataTypes.STRING,
     allowNull: false,
-    field: 'event_type',
     comment: 'Tipo do evento (ex: PURCHASE_APPROVED, SUBSCRIPTION_CANCELLATION)'
   },
   payload: {
@@ -27,7 +25,7 @@ const HotmartEventLog = sequelize.define('HotmartEventLog', {
 }, {
   tableName: 'hotmart_event_logs',
   timestamps: true,
-  underscored: true,
+  underscored: true, // Mapeia camelCase para snake_case (ex: purchaseId -> purchase_id)
   indexes: [
     {
       fields: ['purchase_id', 'event_type'],
