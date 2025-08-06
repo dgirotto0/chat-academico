@@ -165,45 +165,30 @@ exports.forgotPassword = async (req, res) => {
 
 // Redefinir senha
 exports.resetPassword = async (req, res) => {
-  const { token, newPassword } = req.body;
-  if (!token || !newPassword) {
-    return res.status(400).json({ message: 'Token e nova senha são obrigatórios.' });
+  const { newPassword, currentPassword } = req.body;
+  const user = req.user;
+
+  if (!user) {
+    return res.status(401).json({ message: 'Autenticação obrigatória.' });
   }
 
-  try {
-    // Buscar token na tabela
-    const [result] = await db.query(
-      'SELECT * FROM password_reset_tokens WHERE token = ? AND expires_at > NOW()',
-      { replacements: [token], type: db.QueryTypes.SELECT }
-    );
-    const resetToken = result && result[0] ? result[0] : result;
-
-    if (!resetToken) {
-      return res.status(400).json({ message: 'Token inválido ou expirado.' });
+  // Se enviado currentPassword, valida antes de alterar
+  if (currentPassword) {
+    const isValidPassword = await user.checkPassword(currentPassword);
+    if (!isValidPassword) {
+      return res.status(400).json({ message: 'Senha atual incorreta' });
     }
-
-    // Buscar usuário
-    const user = await User.findByPk(resetToken.user_id);
-    if (!user) {
-      return res.status(404).json({ message: 'Usuário não encontrado.' });
-    }
-
-    // Atualizar senha e mustResetPassword
-    user.password = await bcrypt.hash(newPassword, 10);
-    user.mustResetPassword = false;
-    await user.save();
-
-    // Remover token usado
-    await db.query(
-      'DELETE FROM password_reset_tokens WHERE token = ?',
-      { replacements: [token] }
-    );
-
-    return res.json({ message: 'Senha redefinida com sucesso.' });
-  } catch (error) {
-    console.error('Erro ao redefinir senha:', error);
-    return res.status(500).json({ message: 'Erro interno ao redefinir senha.' });
   }
+
+  if (!newPassword || newPassword.length < 6) {
+    return res.status(400).json({ message: 'Nova senha inválida.' });
+  }
+
+  user.password = await bcrypt.hash(newPassword, 10);
+  user.mustResetPassword = false;
+  await user.save();
+
+  return res.json({ message: 'Senha alterada com sucesso.' });
 };
 
 // Redefinir senha com token

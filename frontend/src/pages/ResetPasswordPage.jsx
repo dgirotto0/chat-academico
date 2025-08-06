@@ -18,59 +18,49 @@ const ResetPasswordPage = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
-  const [tokenError, setTokenError] = useState(false);
 
   useEffect(() => {
     // Extract token from URL query params
     const queryParams = new URLSearchParams(location.search);
     const tokenParam = queryParams.get('token');
-    
-    if (!tokenParam) {
-      // Redireciona para login se não houver token
-      navigate('/login', { replace: true });
-      return;
-    } else {
+    if (tokenParam) {
       setToken(tokenParam);
     }
-  }, [location, navigate]);
+  }, [location]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    
+
     if (newPassword.length < 6) {
       setError('A nova senha deve ter pelo menos 6 caracteres');
       return;
     }
-    
+
     if (newPassword !== confirmPassword) {
       setError('As senhas não coincidem');
       return;
     }
-    
+
     setLoading(true);
-    
+
     try {
-      await api.post('/auth/reset-password-with-token', { 
-        token,
-        newPassword 
-      });
-      
+      if (token) {
+        // Fluxo via token
+        await api.post('/auth/reset-password-with-token', { token, newPassword });
+      } else {
+        // Fluxo autenticado
+        await api.post('/auth/reset-password', { newPassword });
+      }
       setSuccess(true);
-      
-      // Redirect to login after 2 seconds
       setTimeout(() => {
         navigate('/login');
-      }, 2000);
+      }, 3000);
     } catch (error) {
-      console.error('Erro ao redefinir senha:', error);
-      
       let errorMessage = 'Erro ao redefinir senha. Tente novamente.';
-      
       if (error.response) {
         errorMessage = error.response.data.message || errorMessage;
       }
-      
       setError(errorMessage);
     } finally {
       setLoading(false);
@@ -103,20 +93,7 @@ const ResetPasswordPage = () => {
             </Typography>
           </Box>
 
-          {tokenError ? (
-            <Alert severity="error" sx={{ mb: 2 }}>
-              {error}
-              <Box sx={{ mt: 2 }}>
-                <Button 
-                  variant="outlined" 
-                  size="small" 
-                  onClick={() => navigate('/login')}
-                >
-                  Voltar para o Login
-                </Button>
-              </Box>
-            </Alert>
-          ) : success ? (
+          {success ? (
             <Alert severity="success" sx={{ mb: 2 }}>
               Senha redefinida com sucesso! Você será redirecionado para a página de login em instantes...
             </Alert>
@@ -127,7 +104,7 @@ const ResetPasswordPage = () => {
                   {error}
                 </Alert>
               )}
-              
+
               <TextField
                 fullWidth
                 margin="normal"
@@ -151,7 +128,7 @@ const ResetPasswordPage = () => {
                   )
                 }}
               />
-              
+
               <TextField
                 fullWidth
                 margin="normal"
@@ -163,7 +140,7 @@ const ResetPasswordPage = () => {
                 error={confirmPassword !== '' && confirmPassword !== newPassword}
                 helperText={confirmPassword !== '' && confirmPassword !== newPassword ? 'As senhas não coincidem' : ''}
               />
-              
+
               <Button
                 type="submit"
                 fullWidth
@@ -175,7 +152,7 @@ const ResetPasswordPage = () => {
               >
                 {loading ? <CircularProgress size={24} /> : 'Redefinir Senha'}
               </Button>
-              
+
               <Box sx={{ textAlign: 'center', mt: 2 }}>
                 <Button
                   onClick={() => navigate('/login')}
