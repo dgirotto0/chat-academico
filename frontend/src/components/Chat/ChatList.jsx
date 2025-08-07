@@ -45,14 +45,12 @@ const ChatList = ({
   const [editDialog, setEditDialog] = useState(false);
   const [editTitle, setEditTitle] = useState('');
   const [deleteDialog, setDeleteDialog] = useState(false);
-  const { showSuccess, showError } = useNotification();
 
   const handleCreateChat = async () => {
     setCreating(true);
     try {
       await onNewChat();
     } catch (error) {
-      showError('Erro ao criar conversa');
     } finally {
       setCreating(false);
     }
@@ -85,9 +83,7 @@ const ChatList = ({
     try {
       // Implementar atualização do título via API
       await onChatUpdated();
-      showSuccess('Título atualizado');
     } catch (error) {
-      showError('Erro ao atualizar título');
     } finally {
       setEditDialog(false);
       setEditTitle('');
@@ -96,17 +92,13 @@ const ChatList = ({
 
   const handleDeleteConfirm = async () => {
     if (!selectedChat) {
-      showError('Nenhuma conversa selecionada para excluir');
       setDeleteDialog(false);
       return;
     }
     try {
-      console.log('Tentando deletar chat:', selectedChat.id);
       await onDeleteChat(selectedChat.id);
-      showSuccess('Conversa excluída');
     } catch (error) {
       console.error('Erro ao excluir conversa:', error);
-      showError('Erro ao excluir conversa');
     } finally {
       setDeleteDialog(false);
       setSelectedChat(null); // Limpa aqui, após ação

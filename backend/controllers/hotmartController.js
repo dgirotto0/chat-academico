@@ -12,12 +12,7 @@ function validateHottok(req) {
   const secret = process.env.HOTMART_WEBHOOK_SECRET;
   const callbackToken = process.env.CALLBACK_TOKEN;
 
-  console.log('🔒 Token recebido:', {
-    header: hottokHeader,
-    param: hottokParam,
-    secret,
-    callback: callbackToken
-  });
+
 
   // Se CALLBACK_TOKEN estiver definido, ambos devem bater
   if (callbackToken) {

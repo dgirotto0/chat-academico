@@ -33,24 +33,20 @@ export const chatApi = {
   createChat: (title) => api.post('/chat', { title }),
   getChatMessages: (chatId) => api.get(`/chat/${chatId}/messages`),
   sendMessage: async (chatId, content, file) => {
-    console.log('API sendMessage chamada com:', { chatId, content, file });
     
     // Se houver arquivo, envie o fileId (após preprocess)
     if (file && file.preprocessed && file.preprocessed.fileId) {
-      console.log('Enviando com fileId:', file.preprocessed.fileId);
       return api.post(`/chat/${chatId}/messages`, {
         content,
         fileId: file.preprocessed.fileId
       });
     }
     
-    console.log('Enviando sem arquivo');
     return api.post(`/chat/${chatId}/messages`, { content });
   },
   editMessage: (chatId, messageId, content) => api.put(`/chat/${chatId}/messages/${messageId}`, { content }),
   updateChat: (chatId, title) => api.put(`/chat/${chatId}`, { title }),
   deleteChat: (chatId) => {
-    console.log('Deletando chat:', chatId);
     return api.delete(`/chat/${chatId}`); // Corrigido: use 'api' e não 'axios'
   },
   regenerateMessage: (chatId, messageId) => api.post(`/chat/${chatId}/regenerate/${messageId}`),

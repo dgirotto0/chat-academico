@@ -10,12 +10,6 @@ const dbConfig = {
   password: process.env.DB_PASS || 'postgres'
 };
 
-console.log('Configuração do banco:', {
-  host: dbConfig.host,
-  port: dbConfig.port,
-  database: dbConfig.database,
-  username: dbConfig.username
-});
 
 const sequelize = new Sequelize(
   dbConfig.database,

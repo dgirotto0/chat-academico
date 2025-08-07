@@ -362,11 +362,6 @@ Se o usuário enviou arquivos, analise seu conteúdo quando solicitado. Mantenha
       content: fullContent
     });
 
-    console.log('Enviando requisição para OpenAI com opções:', JSON.stringify({
-      model: 'gpt-4o',
-      messages,
-      max_tokens: 16384
-    }, null, 2));
 
     // Chamar OpenAI
     const openaiResponse = await openai.chat.completions.create({

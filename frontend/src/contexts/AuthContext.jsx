@@ -20,12 +20,10 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const login = async (email, password) => {
-    console.log('Enviando dados para login:', { email, password });
     setLoading(true);
     setError(null);
     try {
       const response = await api.post('/auth/login', { email, password });
-      console.log('Resposta do servidor:', response.data);
       const { token, user, message } = response.data;
       const userWithBoolReset = { ...user, mustResetPassword: !!user.mustResetPassword };
       localStorage.setItem('token', token);

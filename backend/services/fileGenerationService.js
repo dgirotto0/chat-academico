@@ -55,7 +55,6 @@ class FileGenerationService {
 
   static async generateExcelFile(aiContent, filename) {
     try {
-      console.log('=== GERANDO ARQUIVO EXCEL ===');
       
       const tableData = this.extractMarkdownTable(aiContent);
       if (!tableData || tableData.length === 0) {
@@ -92,7 +91,6 @@ class FileGenerationService {
 
   static async generateCSVFile(aiContent, filename) {
     try {
-      console.log('=== GERANDO ARQUIVO CSV ===');
       
       const tableData = this.extractMarkdownTable(aiContent);
       if (!tableData || tableData.length === 0) {
@@ -127,7 +125,6 @@ class FileGenerationService {
 
   static async generatePDFFile(aiContent, filename) {
     try {
-      console.log('=== GERANDO ARQUIVO PDF ===');
       
       const cleanContent = this.extractCleanText(aiContent);
       
@@ -171,7 +168,6 @@ class FileGenerationService {
 
   static async generateChartFile(aiContent, filename) {
     try {
-      console.log('=== GERANDO GRÁFICO ===');
       
       const jsonString = this.extractJsonBlock(aiContent);
       if (!jsonString) {
@@ -220,7 +216,6 @@ class FileGenerationService {
 
   static async generateImageFile(aiContent, filename) {
     try {
-      console.log('=== GERANDO IMAGEM (DALL-E) ===');
       
       const prompt = this.extractPromptTag(aiContent);
       if (!prompt) {
@@ -270,7 +265,6 @@ class FileGenerationService {
 
   static async generateTextFile(content, filename, extension = 'txt') {
     try {
-      console.log('=== GERANDO ARQUIVO DE TEXTO ===');
       
       const cleanContent = this.extractCleanText(content);
       

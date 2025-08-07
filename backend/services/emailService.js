@@ -1,8 +1,5 @@
 // backend/services/emailService.js
 
-console.log('🔑 MAILJET_API_KEY:', process.env.MAILJET_API_KEY);
-console.log('🔑 MAILJET_SECRET_KEY:', process.env.MAILJET_SECRET_KEY);
-
 const mailjet = require('node-mailjet').apiConnect(
   process.env.MAILJET_API_KEY,
   process.env.MAILJET_SECRET_KEY

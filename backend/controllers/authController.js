@@ -2,6 +2,7 @@ const { User } = require('../models');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const db = require('../config/database'); // ajuste conforme sua conexão
+const emailService = require('../services/emailService');
 
 // Gerar token JWT
 const generateToken = (userId) => {
@@ -154,9 +155,16 @@ exports.changePassword = async (req, res) => {
 exports.forgotPassword = async (req, res) => {
   try {
     const { email } = req.body;
-    
-    // Implementar lógica de envio de email para redefinição de senha
-    res.json({ message: 'Email de redefinição enviado' });
+
+    // Buscar usuário pelo email
+    const user = await User.findOne({ where: { email } });
+    if (user) {
+      // Chamar serviço de envio de e-mail de recuperação
+      await emailService.sendPasswordResetEmail(user, db);
+    }
+
+    // Sempre retorna sucesso para não expor se o email existe ou não
+    res.json({ message: 'Se este e-mail estiver cadastrado, você receberá instruções em breve.' });
   } catch (error) {
     console.error('Erro ao enviar email de redefinição:', error);
     res.status(500).json({ message: 'Erro interno do servidor' });

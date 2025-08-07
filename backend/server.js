@@ -1,6 +1,4 @@
 require('dotenv').config();
-console.log('🔑 MAILJET_API_KEY (server.js):', process.env.MAILJET_API_KEY);
-console.log('🔑 MAILJET_SECRET_KEY (server.js):', process.env.MAILJET_SECRET_KEY);
 const express = require('express');
 const cors = require('cors');
 const path = require('path');

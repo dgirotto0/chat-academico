@@ -32,7 +32,7 @@ const ChatSidebar = ({ chats, selectedChat, onSelectChat, onChatCreated, onChatD
   const [deletingChat, setDeletingChat] = useState(false);
   const [hoveredChat, setHoveredChat] = useState(null);
   
-  const { showSuccess, showError, showInfo } = useNotification();
+  const { showError } = useNotification();
 
   // Filtrar chats de acordo com o termo de busca
   const filteredChats = chats.filter(chat => 
@@ -53,7 +53,6 @@ const ChatSidebar = ({ chats, selectedChat, onSelectChat, onChatCreated, onChatD
       onChatCreated(response.data.chat);
       setIsDialogOpen(false);
       onSelectChat(response.data.chat.id);
-      showSuccess('Conversa criada com sucesso!');
     } catch (error) {
       console.error('Erro ao criar nova conversa:', error);
       showError('Erro ao criar nova conversa. Tente novamente.');
@@ -77,7 +76,6 @@ const ChatSidebar = ({ chats, selectedChat, onSelectChat, onChatCreated, onChatD
       const response = await chatApi.updateChat(editChatId, editChatTitle);
       onChatUpdated(response.data.chat);
       setIsEditDialogOpen(false);
-      showSuccess('Título atualizado com sucesso!');
     } catch (error) {
       console.error('Erro ao atualizar conversa:', error);
       showError('Erro ao atualizar título. Tente novamente.');
@@ -110,7 +108,6 @@ const ChatSidebar = ({ chats, selectedChat, onSelectChat, onChatCreated, onChatD
         }
       }
       
-      showSuccess('Conversa excluída com sucesso!');
     } catch (error) {
       console.error('Erro ao excluir conversa:', error);
       showError('Erro ao excluir conversa. Tente novamente.');
